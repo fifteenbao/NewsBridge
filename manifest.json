@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "NewsBridge",
+  "version": "0.6.0",
+  "description": "Open-source Chrome extension to save articles and videos, and organize content, reading status, and notes in Feishu Bitable.",
+  "action": {
+    "default_title": "Save this page to NewsBridge",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "options_ui": {
+    "page": "src/options.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "src/service-worker.js",
+    "type": "module"
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "contextMenus",
+    "alarms"
+  ],
+  "minimum_chrome_version": "106",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'; connect-src https://newsbridge.example.com;"
+  },
+  "host_permissions": [
+    "https://newsbridge.example.com/*"
+  ]
+}

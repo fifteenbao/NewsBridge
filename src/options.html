@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NewsBridge</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="options">
+    <div class="options-wrap">
+      <header class="options-head"><div class="brand"><span class="mark">NewsBridge</span></div></header>
+      <p class="options-lede">Save useful links, sync reading status, and send unread reminders to your Feishu conversation daily at 10:00.</p>
+      <nav class="dash-nav"><a href="#reading-list">Reading list</a><a href="#settings">Settings</a></nav>
+      <section id="reading-list">
+        <div class="section-head"><h1 class="display-h">Reading list</h1><span class="count" id="list-count"></span></div>
+        <div class="card list-card"><ul class="list dash-list" id="list"></ul></div>
+      </section>
+      <section id="settings">
+        <div class="section-head"><h2 class="display-h">Settings</h2></div>
+        <section class="card">
+          <h3>Feishu connection</h3>
+          <p class="card-note">Chrome connects to your configured HTTPS server. Feishu authorization, table IDs and daily reminders are managed on that server.</p>
+          <div class="field"><div><label class="field-label" for="serverAccessKey">Server access key</label><p class="field-hint">Use the private browser-token.txt from your server. Leave blank to keep the saved key.</p></div><div class="field-control"><input type="password" id="serverAccessKey" autocomplete="off" spellcheck="false" /></div></div>
+          <div class="field"><div><label class="field-label" for="baseToken">Bitable base token</label><p class="field-hint">The identifier after /base/ in your table URL.</p></div><div class="field-control"><input type="text" id="baseToken" autocomplete="off" readonly /></div></div>
+          <div class="field"><div><label class="field-label" for="articleTableId">Table ID</label><p class="field-hint">The table= value, starting with tbl.</p></div><div class="field-control"><input type="text" id="articleTableId" autocomplete="off" readonly /></div></div>
+          <div class="field"><div><label class="field-label" for="chatId">Feishu conversation ID</label><p class="field-hint">Your configured chat_id, starting with oc_.</p></div><div class="field-control"><input type="text" id="chatId" autocomplete="off" readonly /></div></div>
+          <div class="options-foot"><button class="save-btn" id="check-connection">Check server connection</button><button class="save-btn" id="sync">Sync reading library</button></div>
+          <p class="card-note" id="auth-status" role="status" aria-live="polite"></p>
+          <h3>Reading messages</h3>
+          <p class="card-note">Messages go to your configured Feishu conversation. Sending a reminder does not mark its items as read. Unread items are included again the next day.</p>
+          <p class="card-note" id="schedule-note">The server sends unread reminders daily at 10:00 Asia/Shanghai, even when Chrome is closed. No minimum number of items is required.</p>
+          <div class="field">
+            <div><label class="field-label" for="language">Message language</label></div>
+            <div class="field-control"><select id="language"><option value="en">English</option><option value="zh">简体中文</option></select></div>
+          </div>
+        </section>
+        <div class="options-foot"><button class="save-btn" id="save">Save settings</button><span class="saved-note" id="saved-note" role="status">Saved</span></div>
+        <section class="card" id="pending-card" hidden>
+          <h3>Check an unconfirmed message</h3>
+          <p class="card-note" id="pending-note"></p>
+          <p class="card-note">Check the target Feishu conversation before choosing a result. These actions preserve previous delivery receipts.</p>
+          <div class="options-foot"><button class="save-btn" id="confirm-sent">I verified it was delivered</button><button class="save-btn" id="confirm-not-sent">I verified it was not delivered</button></div>
+        </section>
+        <p class="card-note" id="sync-status" role="status" aria-live="polite"></p>
+      </section>
+    </div>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
