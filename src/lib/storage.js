@@ -1,7 +1,7 @@
 import { SafeError, isSafeArticleUrl } from './security.js';
 import { callKnowledge } from './knowledge.js';
 import { callConnection, validAccessKey } from './connection.js';
-import { CONNECTION_ORIGIN } from './connection-config.js';
+import { CONNECTION_BASE_URL } from './connection-config.js';
 
 const ITEMS_KEY = 'items';
 const SETTINGS_KEY = 'settings';
@@ -50,12 +50,12 @@ export function validateSettings(settings) {
 }
 export async function setSettings(settings) {
   const next = validateSettings(settings);
-  if (settings.connectionAccessKey && !CONNECTION_ORIGIN) throw new SafeError('This offline build has no connection configured.');
+  if (settings.connectionAccessKey && !CONNECTION_BASE_URL) throw new SafeError('This offline build has no connection configured.');
   if (settings.connectionAccessKey) {
     if (!validAccessKey(settings.connectionAccessKey)) throw new SafeError('Invalid connection access key.');
   }
   await callConnection('preferences', { language: next.language }, { accessKey: settings.connectionAccessKey });
-  if (settings.connectionAccessKey) await chrome.storage.local.set({ connectionAccessKey: settings.connectionAccessKey, connectionOrigin: CONNECTION_ORIGIN });
+  if (settings.connectionAccessKey) await chrome.storage.local.set({ connectionAccessKey: settings.connectionAccessKey, connectionBaseUrl: CONNECTION_BASE_URL });
   await chrome.storage.local.set({ [SETTINGS_KEY]: next });
   return next;
 }

@@ -1,4 +1,4 @@
-import { CONNECTION_ORIGIN } from './lib/connection-config.js';
+import { CONNECTION_BASE_URL } from './lib/connection-config.js';
 import { isSafeArticleUrl } from './lib/security.js';
 // Dashboard reads cached data; the background worker serializes all mutations.
 
@@ -160,7 +160,7 @@ async function showSyncStatus() {
 let pending = null;
 async function showConnection() {
   const status = await mutate({ type: 'CONNECTION_STATUS' });
-  document.getElementById('auth-status').textContent = status.connected ? `Connected to ${CONNECTION_ORIGIN}; connection identity verified.` : 'Local collection mode. An existing connection can enable Feishu sync.';
+  document.getElementById('auth-status').textContent = status.connected ? `Connected to ${CONNECTION_BASE_URL}; connection identity verified.` : 'Local collection mode. An existing connection can enable Feishu sync.';
   for (const key of ['baseToken', 'articleTableId', 'chatId']) document.getElementById(key).value = status.configuration?.[key] || '';
   if (status.configuration?.language) document.getElementById('language').value = status.configuration.language;
   document.getElementById('schedule-note').textContent = status.configuration?.remindersEnabled ? `Your connected tool schedules unread reminders at 10:00 (${status.configuration.timeZone}). Sending does not mark items read.` : 'Daily reminders are not enabled. Your connected tool can schedule them.';

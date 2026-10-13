@@ -28,17 +28,29 @@ Doctor 仅检查本地格式，不登录、不访问飞书，也不验证适配�
 
 ## 3. Prepare a private connected build / 生成私人连接包
 
-After your existing tool implements the contract, build for its exact HTTPS origin:
+After your existing tool implements the contract, build for its HTTPS base URL, including an optional application path:
 
-已有工具实现接口后，为其唯一 HTTPS 地址打包：
+已有工具实现接口后，为其 HTTPS 连接地址打包，可包含应用子路径：
 
 ```sh
-npm run build -- --origin https://connection.example.com
+npm run build -- --base-url https://connection.example.com/newsbridge/
 ```
 
-Replace the placeholder privately. Load `dist/newsbridge-connected/`. Only that exact origin is granted access; public source stays unchanged. The private ZIP is `dist/newsbridge-connected.zip` and must not be published. The script overwrites only its generated output. A ZIP is unzipped before loading; it is not a Web Store installation.
+Replace the placeholder privately. Load `dist/newsbridge-connected/`. Host permissions use the exact origin; requests use the configured base path; public source stays unchanged. The private ZIP is `dist/newsbridge-connected.zip` and must not be published. The script overwrites only its generated output. A ZIP is unzipped before loading; it is not a Web Store installation.
 
-私下替换示例域名，加载 `dist/newsbridge-connected/`。只授权该域名，公开源码保持不变。带真实域名的 ZIP 不应公开。脚本只覆盖生成目录；ZIP 需解压再加载，不是商店安装。
+私下替换示例域名，加载 `dist/newsbridge-connected/`。仅申请该主机的域名权限，请求使用配置的目录前缀，公开源码保持不变。带真实域名的 ZIP 不应公开。脚本只覆盖生成目录；ZIP 需解压再加载，不是商店安装。
+
+To keep the real address out of commands and public source, put `{"baseUrl":"https://connection.example.com/newsbridge/"}` (with your actual private address) in Git-ignored `private/endpoint.json`, then build from that file:
+
+也可以把真实连接地址保存在 Git 忽略的 `private/endpoint.json`，文件格式为上述 baseUrl 对象；无需将实际地址写进命令或公开源码：
+
+```sh
+npm run build -- --config private/endpoint.json
+```
+
+Configure the same `baseUrl` in the existing connection handler and preserve the path prefix in routing. Chrome host permissions do not isolate subdirectories; see [the routing and security explanation](docs/CONNECTION.md#base-url-and-origin--连接地址与-origin).
+
+连接端使用相同 baseUrl，路由保留目录前缀。Chrome 域名权限不能按子目录隔离，详见接口文档的路径与安全说明。
 
 Give the resulting 32-character extension ID to the existing connection's origin validator. In Settings enter its dedicated access key, choose **Save settings**, then **Check connection** and **Sync reading library**. The key is an opaque 32–512 character base64url credential issued by the host environment; do not reuse a Feishu access token. Changes to the endpoint require re-entering the key. Changing identity/table requires a separate Chrome profile to avoid mixing collections.
 

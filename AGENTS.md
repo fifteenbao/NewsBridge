@@ -19,6 +19,10 @@
 - Do not add or redesign frontend pages as part of documentation, backend, or security work. Necessary changes to existing page logic should be limited to verified security or functional fixes, and their purpose should be explained.
 - Keep English and Simplified Chinese documentation aligned, preserve upstream attribution and the MIT license, and avoid personal credentials in committed examples.
 
+## Release versioning
+
+- Release versions are chosen by the user. Keep manifest.json and package.json aligned; do not increment versions merely for internal edits or task iterations.
+
 ## Verification
 
 - Run `npm test` and `npm run security` after relevant changes.

@@ -2,7 +2,7 @@ import { readFile, lstat } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CONNECTION_ORIGIN } from '../src/lib/connection-config.js';
+import { CONNECTION_BASE_URL } from '../src/lib/connection-config.js';
 
 const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const findings = [];
@@ -27,7 +27,7 @@ for (const file of files) {
   if (file.startsWith('src/') && /\.innerHTML\s*=|\.outerHTML\s*=|\beval\s*\(|\bnew\s+Function\s*\(/.test(source)) report(file, 'unsafe DOM or code execution sink');
 }
 const manifest = JSON.parse(await readFile(resolve(root, 'manifest.json'), 'utf8'));
-if (CONNECTION_ORIGIN !== '' || manifest.host_permissions || manifest.optional_host_permissions) report('manifest.json', 'public source must be offline with no host permissions');
+if (CONNECTION_BASE_URL !== '' || manifest.host_permissions || manifest.optional_host_permissions) report('manifest.json', 'public source must be offline with no host permissions');
 if (manifest.content_scripts || manifest.externally_connectable || manifest.web_accessible_resources ||
     manifest.permissions.some(permission => !['storage', 'activeTab', 'contextMenus', 'alarms'].includes(permission))) {
   report('manifest.json', 'expanded extension access');

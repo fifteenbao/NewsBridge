@@ -47,7 +47,7 @@ For the extension package, the selected directory should look like this:
 
 ### Try your first capture
 
-Open an ordinary `https://` article or video page and click the NewsBridge icon. Right-click the icon and choose **Reading list** to find the saved title and link. Chrome internal pages such as `chrome://extensions` cannot be captured.
+Open an ordinary `https://` article or video page and click the NewsBridge icon. A green `✓` on the icon confirms the save; clicking saves directly without opening a popup. A `!` indicates an unsupported page or a capture/sync error; hover over the icon for details. A sync error does not discard a successful local capture. Right-click the icon and choose **Reading list** to find the saved title and link. Chrome internal pages such as `chrome://extensions` cannot be captured.
 
 The default package works locally with **no host permissions, connection key, or background service**. Feishu synchronization and daily reminders need a separate connection setup; follow [Setup](SETUP.md) or give your agent the [agent setup instructions](docs/AGENT-SETUP.md). Saving a video captures its page title and link, not its video file or transcript.
 
@@ -72,7 +72,7 @@ This creates the loadable directory `dist/newsbridge/` and archive `dist/newsbri
 
 Feishu sync is optional. NewsBridge defines a connection contract; it does not require a particular command-line tool, cloud provider, server OS, or agent product.
 
-An agent can inspect your existing environment, implement the contract using an authorized Feishu connection, and generate a private extension build for its exact HTTPS origin. A tool that can send chat messages is not necessarily able to read/write Bitable: these capabilities must be verified separately.
+An agent can inspect your existing environment, implement the contract using an authorized Feishu connection, and generate a private extension build for its HTTPS base URL, including an optional application path. A tool that can send chat messages is not necessarily able to read/write Bitable: these capabilities must be verified separately.
 
 - [Setup](SETUP.md): installation and environment checks.
 - [Connection contract](docs/CONNECTION.md): adapter operations, authentication and scheduling.

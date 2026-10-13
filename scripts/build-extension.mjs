@@ -1,11 +1,13 @@
 import { readFile, writeFile, mkdir, readdir, lstat, rm } from 'node:fs/promises';
 import { resolve, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isSafeArticleUrl } from '../src/lib/security.js';
+import { parseConnectionUrl } from '../src/lib/connection-url.js';
 
 // An allowlist avoids ever packaging private config, credentials or backend code.
-export async function buildExtension({ origin = '', outputRoot = new URL('../dist/', import.meta.url) } = {}) {
-  if (origin && (!isSafeArticleUrl(origin) || !origin.startsWith('https://') || new URL(origin).origin !== origin)) throw new Error('Provide one exact public HTTPS origin with no path or trailing slash.');
+export async function buildExtension({ baseUrl = '', outputRoot = new URL('../dist/', import.meta.url) } = {}) {
+  const target = baseUrl ? parseConnectionUrl(baseUrl) : null;
+  const origin = target?.origin || '';
+  baseUrl = target?.baseUrl || '';
   const root = fileURLToPath(new URL('../', import.meta.url));
   const outRoot = outputRoot instanceof URL ? fileURLToPath(outputRoot) : resolve(outputRoot);
   const name = origin ? 'newsbridge-connected' : 'newsbridge';
@@ -21,7 +23,7 @@ export async function buildExtension({ origin = '', outputRoot = new URL('../dis
   if (origin) manifest.host_permissions = [origin + '/*']; else delete manifest.host_permissions;
   manifest.content_security_policy.extension_pages = manifest.content_security_policy.extension_pages.replace(/connect-src [^;]+;/, `connect-src ${origin || "'none'"};`);
   entries.find(e => e.name === 'manifest.json').data = Buffer.from(JSON.stringify(manifest, null, 2) + '\n');
-  entries.find(e => e.name === 'src/lib/connection-config.js').data = Buffer.from(`export const CONNECTION_ORIGIN = ${JSON.stringify(origin)};\n`);
+  entries.find(e => e.name === 'src/lib/connection-config.js').data = Buffer.from(`export const CONNECTION_BASE_URL = ${JSON.stringify(baseUrl)};\n`);
   // Only a designated generated directory is replaced; never the repository.
   if (output === root || relative(root, outRoot) === '') throw new Error('Choose a build output directory.');
   await mkdir(outRoot, { recursive: true, mode: 0o700 });
@@ -64,7 +66,15 @@ function zip(entries) {
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
-  if (args.length && (args.length !== 2 || args[0] !== '--origin')) throw new Error('Usage: npm run build -- [--origin https://your-connection.example]');
-  const result = await buildExtension({ origin: args[1] || '' });
+  if (args.length && (args.length !== 2 || !['--base-url', '--config'].includes(args[0]))) throw new Error('Usage: npm run build -- [--base-url https://connection.example.com/newsbridge/ | --config /private/endpoint.json]');
+  let baseUrl = args[1] || '';
+  if (args[0] === '--config') {
+    try {
+      const config = JSON.parse(await readFile(args[1], 'utf8'));
+      if (typeof config.baseUrl !== 'string' || !config.baseUrl) throw new Error();
+      baseUrl = config.baseUrl;
+    } catch { throw new Error('Private build config must contain a nonempty baseUrl.'); }
+  }
+  const result = await buildExtension({ baseUrl });
   process.stdout.write(`Extension folder: ${result.directory}\nZIP archive: ${result.archive}\n${result.connected ? 'Private connection build; do not publish.' : 'Offline build; no host permissions.'}\n`);
 }

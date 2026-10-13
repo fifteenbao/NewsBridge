@@ -1,11 +1,13 @@
-import { SafeError, safeErrorMessage, readJsonResponse, isSafeArticleUrl } from '../src/lib/security.js';
+import { SafeError, safeErrorMessage, readJsonResponse } from '../src/lib/security.js';
+
+import { parseConnectionUrl } from '../src/lib/connection-url.js';
 
 // Mount this Fetch Request/Response handler in an existing HTTPS environment.
 // It creates no listener, process, credentials, deployment or scheduler.
-export function createHttpHandler({ origin, extensionId, authenticate, connector, maxBytes = 20 * 1024 * 1024 }) {
-  if (!isSafeArticleUrl(origin) || new URL(origin).origin !== origin || !origin.startsWith('https://') ||
-      !/^[a-p]{32}$/.test(extensionId || '') || typeof authenticate !== 'function' || typeof connector?.dispatch !== 'function') {
-    throw new SafeError('Configure an exact HTTPS origin, extension ID and authentication verifier.');
+export function createHttpHandler({ baseUrl, extensionId, authenticate, connector, maxBytes = 20 * 1024 * 1024 }) {
+  const target = parseConnectionUrl(baseUrl);
+  if (!/^[a-p]{32}$/.test(extensionId || '') || typeof authenticate !== 'function' || typeof connector?.dispatch !== 'function') {
+    throw new SafeError('Configure an HTTPS base URL, extension ID and authentication verifier.');
   }
   const expectedOrigin = `chrome-extension://${extensionId}`;
   const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences']);
@@ -18,9 +20,9 @@ export function createHttpHandler({ origin, extensionId, authenticate, connector
       return new Response(status === 204 ? null : text, { status, headers });
     };
     const url = new URL(request.url), originHeader = request.headers.get('Origin');
-    if (url.origin !== origin || url.search) return send(400, { ok: false, error: 'Invalid connection URL.' });
+    if (url.origin !== target.origin || url.search || url.hash) return send(400, { ok: false, error: 'Invalid connection URL.' });
     if (originHeader && originHeader !== expectedOrigin) return send(403, { ok: false, error: 'Untrusted extension.' });
-    const action = url.pathname.startsWith('/v1/') ? url.pathname.slice(4) : '';
+    const action = url.pathname.startsWith(target.apiPath) ? url.pathname.slice(target.apiPath.length) : '';
     if (!actions.has(action)) return send(404, { ok: false, error: 'Unknown operation.' });
     if (originHeader === expectedOrigin) { headers['Access-Control-Allow-Origin'] = originHeader; headers.Vary = 'Origin'; }
     if (request.method === 'OPTIONS') {

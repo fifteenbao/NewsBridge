@@ -12,7 +12,7 @@ function enqueue(work) {
 async function reportError(error) {
   await chrome.action.setBadgeText({ text: '!' });
   await chrome.action.setBadgeBackgroundColor({ color: '#9f401f' });
-  await chrome.action.setTitle({ title: safeErrorMessage(error) + ' — Sync reading library to retry.' });
+  await chrome.action.setTitle({ title: safeErrorMessage(error) + ' — Right-click NewsBridge to open Settings.' });
 }
 async function syncReadingLibrary() {
   try {
@@ -66,15 +66,18 @@ chrome.runtime.onStartup.addListener(() => {
 });
 chrome.action.onClicked.addListener(tab => {
   enqueue(async () => {
-    if (!/^https?:\/\//i.test(tab?.url || '')) return;
+    if (!/^https?:\/\//i.test(tab?.url || '')) {
+      await reportError(new SafeError('This page cannot be saved. Open an HTTP(S) article or video page and try again.'));
+      return;
+    }
     try { await addItem({ url: tab.url, title: tab.title }); } catch (error) { await reportError(error); return; }
-    await showToast(tab.id, 'Saved to NewsBridge', 'Syncing reading status…');
+    await showCaptureFeedback('Saved locally', 'Checking reading sync…');
     try {
       const result = await syncReadingLibrary();
       const note = result.notifications?.error || (result.enabled ? 'Synced with Feishu Bitable.' :
         'Saved locally. Configure a connection to enable Feishu sync.');
-      await showToast(tab.id, 'Saved to NewsBridge', note);
-    } catch (error) { await showToast(tab.id, 'Saved locally', safeErrorMessage(error)); }
+      await showCaptureFeedback('Saved to NewsBridge', note, !!result.notifications?.error);
+    } catch (error) { await showCaptureFeedback('Saved locally — sync failed', safeErrorMessage(error), true); }
   }).catch(() => console.warn('NewsBridge operation failed; check Settings.'));
 });
 // Serialize dashboard mutations with background sync, so local writes do not
@@ -107,8 +110,10 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   return true;
 });
 // Toolbar feedback needs no script injection or page-content access.
-async function showToast(_tabId, title, note) {
-  await chrome.action.setTitle({ title: title + ' · ' + note });
+async function showCaptureFeedback(title, note, warning = false) {
+  await chrome.action.setBadgeBackgroundColor({ color: warning ? '#9f401f' : '#23734d' });
+  await chrome.action.setBadgeText({ text: warning ? '!' : '✓' });
+  await chrome.action.setTitle({ title: title + ' · ' + note + ' — Right-click → Reading list.' });
 }
 // Alarms can disappear on restart/update; restore them whenever the worker loads.
 enqueue(initializeAlarms).catch(() => console.warn('NewsBridge operation failed; check Settings.'));

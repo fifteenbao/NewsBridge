@@ -17,9 +17,9 @@ Existing scheduler → connector.daily()
 Both dispatch and daily share durable state and an exclusive lock.
 ```
 
-No provider, executable, service manager, OS path or personal domain is required by the core. The public extension is offline; a private build supplies an exact connection origin and matching host permission/CSP. Core source remains unchanged.
+No provider, executable, service manager, OS path or personal domain is required by the core. The public extension is offline; a private build supplies an HTTPS base URL (optionally with an application path) and derives host permissions/CSP from its origin. Client and handler retain the path prefix. Core source remains unchanged.
 
-核心不依赖指定工具、服务管理器、系统路径或私人域名。公开包默认离线，私人构建同时写入精确地址、域名权限和 CSP，不修改公开源码。
+核心不依赖指定工具、服务管理器、系统路径或私人域名。公开包默认离线，私人构建记录可带子路径的 baseUrl，并从 origin 生成域名权限和 CSP，请求与处理器保留路径前缀，不修改公开源码。
 
 - `src/`: browser capture, local cache, status controls and connection client.
 - `connector/`: verified adapter calls, portable dispatch, optional Fetch handler and daily reminder entry point; no listener or scheduler is started.

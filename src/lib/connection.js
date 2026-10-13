@@ -1,29 +1,30 @@
-import { CONNECTION_ORIGIN } from './connection-config.js';
-import { SafeError, readJsonResponse, isSafeArticleUrl } from './security.js';
+import { CONNECTION_BASE_URL } from './connection-config.js';
+import { SafeError, readJsonResponse } from './security.js';
+import { parseConnectionUrl } from './connection-url.js';
 const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences']);
 export const validAccessKey = value => typeof value === 'string' && /^[A-Za-z0-9_-]{32,512}$/.test(value);
 const validIdentity = value => value && /^[A-Za-z0-9._:-]{1,128}$/.test(value.connectionId || '') && /^[A-Za-z0-9]+\/[A-Za-z0-9]+$/.test(value.base || '');
 const sameIdentity = (a, b) => a.connectionId === b.connectionId && a.base === b.base;
 
-export function createConnectionClient({ origin = CONNECTION_ORIGIN, storage, fetchImpl } = {}) {
+export function createConnectionClient({ baseUrl = CONNECTION_BASE_URL, storage, fetchImpl } = {}) {
   return async (action, payload = {}, { accessKey } = {}) => {
     if (!actions.has(action)) throw new SafeError('Unsupported connection operation.');
-    if (!origin) {
+    if (!baseUrl) {
       if (['health', 'sync', 'preferences'].includes(action)) return { ok: true, connected: false, enabled: false };
       if (action === 'pending') return { ok: true, pending: null };
       throw new SafeError('Configure a connection before updating linked records.');
     }
-    if (!isSafeArticleUrl(origin) || new URL(origin).origin !== origin || !origin.startsWith('https://')) throw new SafeError('Invalid connection origin.');
+    const target = parseConnectionUrl(baseUrl).baseUrl;
     const local = storage || chrome.storage.local;
-    const stored = await local.get(['connectionAccessKey', 'collectionIdentity', 'connectionOrigin']);
+    const stored = await local.get(['connectionAccessKey', 'collectionIdentity', 'connectionBaseUrl']);
     const key = accessKey || stored.connectionAccessKey, identity = stored.collectionIdentity;
     if (!validAccessKey(key)) throw new SafeError('Enter the connection access key in Settings.');
-    if (!accessKey && stored.connectionOrigin && stored.connectionOrigin !== origin) throw new SafeError('Connection address changed. Verify it and enter its access key again.');
+    if (!accessKey && stored.connectionBaseUrl && stored.connectionBaseUrl !== target) throw new SafeError('Connection address changed. Verify it and enter its access key again.');
     const body = JSON.stringify({ ...payload, ...(identity ? { expectedIdentity: identity } : {}) });
     if (new TextEncoder().encode(body).length > 20 * 1024 * 1024) throw new SafeError('Sync request exceeds 20 MiB.');
     let response;
     try {
-      response = await (fetchImpl || fetch)(`${origin}/v1/${action}`, { method: 'POST',
+      response = await (fetchImpl || fetch)(`${target}v1/${action}`, { method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body,
         credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(180000) });
     } catch { throw new SafeError('Connection failed or timed out. Check its availability and HTTPS configuration.'); }

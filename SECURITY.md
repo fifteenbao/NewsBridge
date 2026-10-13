@@ -1,8 +1,8 @@
 # Security / 安全边界
 
-NewsBridge's public extension works offline and requests no host permission. A private connected build permits only its operator-selected HTTPS origin. Packaging includes only the manifest, browser source, icons and license; configuration, credentials, connector code and tests are excluded.
+NewsBridge's public extension works offline and requests no host permission. A private connected build grants host access only to its operator-selected HTTPS origin. Requests and handler routes use the configured application path, but Chrome host permissions do not isolate subdirectories. Packaging includes only the manifest, browser source, icons and license; configuration, credentials, connector code and tests are excluded.
 
-公开扩展默认离线，无域名访问权限。私人连接包仅授权用户选择的 HTTPS 地址；安装包不包含私人配置、凭证、连接端代码或测试。
+公开扩展默认离线，无域名访问权限。私人连接包仅授权用户选择的 HTTPS 主机；请求和处理器使用配置的目录前缀，但 Chrome 域名权限不隔离子目录；安装包不包含私人配置、凭证、连接端代码或测试。
 
 ## Extension / 扩展
 

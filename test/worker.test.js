@@ -17,7 +17,7 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
   };
   t.after(() => Object.assign(globalThis, original));
   const local = { settings: { language: 'en' }, connectionAccessKey: 't'.repeat(43) }, session = {};
-  const alarms = new Map();
+  const alarms = new Map(), badges = [], titles = [];
   globalThis.chrome = {
     storage: { local: area(local), session: area(session) },
     runtime: { id: 'test', getURL: path => `chrome-extension://test/${path}`,
@@ -25,7 +25,7 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
     alarms: { onAlarm: event(), getAll: async () => [...alarms.values()], get: async name => alarms.get(name),
       clear: async name => alarms.delete(name), create: async (name, info) => alarms.set(name, { name,
         scheduledTime: info.when || time + info.periodInMinutes * 60000, ...info }) },
-    action: { onClicked: event(), setTitle: async () => {}, setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {} },
+    action: { onClicked: event(), setTitle: async value => titles.push(value.title), setBadgeText: async value => badges.push(value.text), setBadgeBackgroundColor: async () => {} },
     contextMenus: { onClicked: event(), removeAll: callback => callback(), create: () => {} },
     tabs: { create: async () => {} },
   };
@@ -40,7 +40,7 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
   const outputRoot = await mkdtemp(join(tmpdir(), 'newsbridge-worker-'));
   t.after(() => rm(outputRoot, { recursive: true, force: true }));
   await writeFile(join(outputRoot, 'package.json'), '{"type":"module"}');
-  const built = await buildExtension({ origin: 'https://connection.example.com', outputRoot });
+  const built = await buildExtension({ baseUrl: 'https://connection.example.com', outputRoot });
   await import(pathToFileURL(join(built.directory, 'src/service-worker.js')));
   const drain = () => new Promise(resolve => chrome.runtime.onMessage.emit({ type: 'CONNECTION_STATUS' },
     { id: 'test', frameId: 0, url: chrome.runtime.getURL('src/options.html') }, resolve));
@@ -98,4 +98,11 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
   assert.equal(sends.length, 0);
   assert.equal(local.items.find(item => item.feishuRecordId === 'recInitial').read, true);
   assert.equal(alarms.has('daily-reading'), false);
+  unavailable = true;
+  chrome.action.onClicked.emit({ id: 3, title: 'Offline capture', url: 'https://example.com/offline-capture' });
+  await drain();
+  assert.ok(local.items.some(item => item.url === 'https://example.com/offline-capture'));
+  assert.equal(records.some(record => record.fields.标题 === 'Offline capture'), false);
+  assert.equal(badges.at(-1), '!');
+  assert.match(titles.at(-1), /Saved locally — sync failed/);
 });
