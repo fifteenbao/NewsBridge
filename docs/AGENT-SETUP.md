@@ -1,0 +1,25 @@
+# Agent-assisted setup / Agent 配置说明
+
+Read [README](../README.md), [SETUP](../SETUP.md), and [the connection contract](CONNECTION.md). Configure the user's existing environment; do not rewrite core extension code to accommodate each installation.
+
+先阅读上述文档。优先配置用户已有环境，不为每次安装重写扩展核心代码。
+
+1. **Inspect, without exposing secrets.** Determine the available authenticated Feishu tools, verified identity, Bitable permissions, existing HTTPS routing, durable storage, shared locking, and optional scheduler. Do not scan unrelated credential files or infer authorization from a desktop login.
+2. **Report the fit.** Distinguish local-only capture, table sync, and scheduled reminders. A chat integration is not proof of table access. If something is missing, say what; do not silently install software, open ports, create accounts, deploy hosting or expand permissions.
+3. **Adapt the existing tool.** Implement the small adapter in private integration code, following CONNECTION.md. Normalize pagination and errors. Preserve fixed-table restrictions and message UUIDs. Verify identity using actual authorization, not a constant copied from config. Do not claim a named product is supported until tested.
+4. **Write private configuration.** Use `private/` or the environment's own private storage. Leave reminders disabled initially. Run `npm run doctor -- --config <private-path>` for local format checks; this does not validate live capabilities.
+5. **Generate the installation artifact.** Use `npm run build` for offline capture, or `npm run build -- --origin <exact-approved-https-origin>` for a private connected build. Public source must retain no host permission and no private domain. Give the user the output directory/ZIP and load-unpacked instructions. Never publish the connected build as a generic public release.
+6. **Verify the contract.** Check health and pinned identity; read fields and records. With user-authorized disposable content, verify capture deduplication, status updates, preservation of existing notes, and deletion handling. An auth or timeout failure must preserve local data. Never send test chat messages without authorization.
+7. **Enable reminders if requested and supported.** Confirm the target chat and durable state/locking before registering the existing scheduler. Do not use daily() as a health check: it can send messages. Explain whether sleep/offline periods delay delivery. Keep reminders disabled when requirements are missing.
+8. **Hand off evidence.** Report configured capabilities, installation path, local tests versus live checks, and anything still missing. Do not include keys, tokens, private domains or personal account details in public documentation.
+
+中文执行要点：
+
+1. 只检查相关能力，不暴露密钥，也不把桌面登录当成 API 授权。
+2. 分清本地收藏、表格同步、定时提醒三个层次；缺能力就报告，不擅自部署或扩大权限。
+3. 在私人接入代码中实现适配器，保留分页、账号校验、目标限制和消息去重。
+4. 生成私人配置，初始关闭提醒；doctor 只做格式检查。
+5. 生成离线安装包或唯一授权域名的私人连接包，公开源码不包含私人信息。
+6. 用已授权的临时素材验证状态同步、去重、笔记保留与删除处理；不擅自发送测试消息。
+7. 确认现有调度、共享锁和持久化存储后才启用每日提醒。
+8. 交付安装路径与验证结果，明确模拟测试和真实验证的区别。

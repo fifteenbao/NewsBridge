@@ -1,4 +1,4 @@
-import { SERVER_ORIGIN } from './lib/server-target.js';
+import { CONNECTION_ORIGIN } from './lib/connection-config.js';
 import { isSafeArticleUrl } from './lib/security.js';
 // Dashboard reads cached data; the background worker serializes all mutations.
 
@@ -151,7 +151,7 @@ async function mutate(message) {
 function fillSettings(settings) {
   document.getElementById('language').value = settings.language;
 }
-function collectSettings() { return { language: document.getElementById('language').value, serverAccessKey: document.getElementById('serverAccessKey').value.trim() }; }
+function collectSettings() { return { language: document.getElementById('language').value, connectionAccessKey: document.getElementById('connectionAccessKey').value.trim() }; }
 async function showSyncStatus() {
   const { knowledgeSync } = await chrome.storage.local.get('knowledgeSync');
   document.getElementById('sync-status').textContent = knowledgeSync?.error || '';
@@ -160,10 +160,10 @@ async function showSyncStatus() {
 let pending = null;
 async function showConnection() {
   const status = await mutate({ type: 'CONNECTION_STATUS' });
-  document.getElementById('auth-status').textContent = status.connected ? `Connected to ${SERVER_ORIGIN}; server CLI identity verified.` : 'Configure the HTTPS server and its CLI authorization.';
+  document.getElementById('auth-status').textContent = status.connected ? `Connected to ${CONNECTION_ORIGIN}; connection identity verified.` : 'Local collection mode. An existing connection can enable Feishu sync.';
   for (const key of ['baseToken', 'articleTableId', 'chatId']) document.getElementById(key).value = status.configuration?.[key] || '';
   if (status.configuration?.language) document.getElementById('language').value = status.configuration.language;
-  document.getElementById('schedule-note').textContent = `The server sends unread reminders daily at 10:00 (${status.configuration?.timeZone || 'Asia/Shanghai'}). Chrome can be closed. Sending does not mark items read.`;
+  document.getElementById('schedule-note').textContent = status.configuration?.remindersEnabled ? `Your connected tool schedules unread reminders at 10:00 (${status.configuration.timeZone}). Sending does not mark items read.` : 'Daily reminders are not enabled. Your connected tool can schedule them.';
   pending = status.connected ? (await mutate({ type: 'PENDING' })).pending : null;
   document.getElementById('pending-card').hidden = !pending;
   if (pending) document.getElementById('pending-note').textContent = `${pending.recordIds.length} items · requested ${new Date(pending.createdAt).toLocaleString()} · reference ${pending.id}`;
@@ -191,12 +191,12 @@ async function init() {
   await renderList();
   await showSyncStatus();
   fillSettings(await getSettings());
-  document.getElementById('schedule-note').textContent = 'The server sends unread reminders daily at 10:00 Asia/Shanghai, even when Chrome is closed.';
+  document.getElementById('schedule-note').textContent = 'Daily reminders are optional and run through your connected tool.';
 
   bindAction('save', async () => {
     const result = await mutate({ type: 'SAVE_SETTINGS', settings: collectSettings() });
     fillSettings(result.settings);
-    document.getElementById('serverAccessKey').value = '';
+    document.getElementById('connectionAccessKey').value = '';
     flashSaved();
   });
   bindAction('check-connection', async () => {});

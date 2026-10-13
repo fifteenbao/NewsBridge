@@ -1,7 +1,7 @@
 import { SafeError, safeErrorMessage } from './lib/security.js';
 import { getItems, setItems, setSettings, setRead, addItem, deleteItem } from './lib/storage.js';
 import { callKnowledge, mergeKnowledge } from './lib/knowledge.js';
-import { connectionStatus, pendingDelivery, resolveDelivery } from './lib/server-bridge.js';
+import { connectionStatus, pendingDelivery, resolveDelivery } from './lib/connection.js';
 
 let queue = Promise.resolve();
 function enqueue(work) {
@@ -71,8 +71,8 @@ chrome.action.onClicked.addListener(tab => {
     await showToast(tab.id, 'Saved to NewsBridge', 'Syncing reading status…');
     try {
       const result = await syncReadingLibrary();
-      const note = result.notifications?.error || (result.enabled ? 'Synced with Feishu Bitable. The server sends unread reminders daily at 10:00.' :
-        'Saved locally. Configure Feishu in Settings to enable sync.');
+      const note = result.notifications?.error || (result.enabled ? 'Synced with Feishu Bitable.' :
+        'Saved locally. Configure a connection to enable Feishu sync.');
       await showToast(tab.id, 'Saved to NewsBridge', note);
     } catch (error) { await showToast(tab.id, 'Saved locally', safeErrorMessage(error)); }
   }).catch(() => console.warn('NewsBridge operation failed; check Settings.'));

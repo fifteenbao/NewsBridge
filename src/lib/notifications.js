@@ -16,7 +16,7 @@ export function validateNotifications(config) {
 // serializes separate service instances and dashboard mutations.
 export function createReadingService({ knowledge, config, request, store, now = () => Date.now() }) {
   let queue = Promise.resolve();
-  const scopeKey = JSON.stringify([config.appId, config.accountId, config.baseToken, config.articleTableId, config.notifications?.chatId]);
+  const scopeKey = JSON.stringify([config.connectionId, config.baseToken, config.articleTableId, config.notifications?.chatId]);
 
   async function run({ items = [], language = 'en', deliveryDate = null } = {}) {
     if (deliveryDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate)) throw new SafeError('Invalid daily delivery date.');
@@ -30,7 +30,7 @@ export function createReadingService({ knowledge, config, request, store, now = 
       if (configured) {
         const state = await store.load();
         scope = state.scopes[scopeKey] ||= { target: { baseToken: config.baseToken,
-          tableId: config.articleTableId, chatId: config.notifications.chatId, accountId: config.accountId }, sent: {}, pending: null };
+          tableId: config.articleTableId, chatId: config.notifications.chatId, connectionId: config.connectionId }, sent: {}, pending: null };
         // Captures and manual sync only update the table. A scheduled run supplies
         // a date; historical receipts do not suppress tomorrow's unread reminder.
         if (!deliveryDate) return { ...result, notifications: { configured, deliveries, sent: scope.sent, error: null } };

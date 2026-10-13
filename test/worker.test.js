@@ -1,10 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ARTICLE_FIELDS } from '../src/lib/bitable.js';
-import { createServerRuntime } from '../server/runtime.js';
+import { fixture } from '../test-support/connector-fixture.js';
 import { area, event } from '../test-support/chrome-mock.js';
+import { buildExtension } from '../scripts/build-extension.mjs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-test('worker syncs capture/status through HTTPS; server exclusively owns daily reminders', async t => {
+test('worker syncs capture/status through HTTPS; external scheduler exclusively owns daily reminders', async t => {
   const original = { chrome: globalThis.chrome, fetch: globalThis.fetch, Date: globalThis.Date };
   let time = new original.Date(2026, 9, 12, 9).getTime();
   globalThis.Date = class extends original.Date {
@@ -12,10 +16,7 @@ test('worker syncs capture/status through HTTPS; server exclusively owns daily r
     static now() { return time; }
   };
   t.after(() => Object.assign(globalThis, original));
-  const local = { settings: { language: 'en' }, serverAccessKey: 't'.repeat(43) }, session = {};
-  let journal = { version: 1, scopes: {} };
-  const config = { appId: 'cli_test', accountId: 'ou_user', baseToken: 'baseTest', articleTableId: 'tblTest',
-    chatId: 'oc_test', timeZone: 'Asia/Shanghai', language: 'en', schema: 'briefing', notifications: { chatId: 'oc_test' } };
+  const local = { settings: { language: 'en' }, connectionAccessKey: 't'.repeat(43) }, session = {};
   const alarms = new Map();
   globalThis.chrome = {
     storage: { local: area(local), session: area(session) },
@@ -28,34 +29,19 @@ test('worker syncs capture/status through HTTPS; server exclusively owns daily r
     contextMenus: { onClicked: event(), removeAll: callback => callback(), create: () => {} },
     tabs: { create: async () => {} },
   };
-  const records = [{ record_id: 'recInitial', fields: { 标题: 'Initial', 链接: { link: 'https://example.com/initial' }, 阅读状态: '待阅读' } }];
-  const sends = [];
-  const run = async (method, path, { data } = {}) => {
-    if (path.endsWith('/user_info')) return { code: 0, data: { open_id: config.accountId } };
-    if (path.endsWith('/fields')) return { code: 0, data: { items: Object.entries(ARTICLE_FIELDS).map(([field_name, type]) => ({ field_name, type })) } };
-    if (path.endsWith('/messages')) {
-      sends.push(data);
-      return { code: 0, data: { message_id: `om_${sends.length}` } };
-    }
-    if (method === 'PUT') {
-      const id = path.split('/').at(-1);
-      Object.assign(records.find(record => record.record_id === id).fields, data.fields);
-      return { code: 0, data: {} };
-    }
-    if (method === 'POST') {
-      const record = { record_id: `rec${records.length}`, fields: data.fields };
-      records.push(record);
-      return { code: 0, data: { record } };
-    }
-    return { code: 0, data: { items: records } };
-  };
-  const runtime = createServerRuntime({ config, run, now: () => time, exclusive: work => work(),
-    store: { load: async () => structuredClone(journal), save: async value => { journal = structuredClone(value); } } });
+  const f = fixture({ clock: () => time });
+  const { records, sends, runtime } = f;
+  let unavailable = false;
   globalThis.fetch = async (url, options) => {
-    assert.equal(new URL(url).origin, 'https://newsbridge.example.com');
+    if (unavailable) throw new Error('connection unavailable');
+    assert.equal(new URL(url).origin, 'https://connection.example.com');
     return Response.json(await runtime.dispatch(new URL(url).pathname.slice(4), JSON.parse(options.body)));
   };
-  await import('../src/service-worker.js');
+  const outputRoot = await mkdtemp(join(tmpdir(), 'newsbridge-worker-'));
+  t.after(() => rm(outputRoot, { recursive: true, force: true }));
+  await writeFile(join(outputRoot, 'package.json'), '{"type":"module"}');
+  const built = await buildExtension({ origin: 'https://connection.example.com', outputRoot });
+  await import(pathToFileURL(join(built.directory, 'src/service-worker.js')));
   const drain = () => new Promise(resolve => chrome.runtime.onMessage.emit({ type: 'CONNECTION_STATUS' },
     { id: 'test', frameId: 0, url: chrome.runtime.getURL('src/options.html') }, resolve));
   await drain();
@@ -70,7 +56,6 @@ test('worker syncs capture/status through HTTPS; server exclusively owns daily r
     assert.equal(handler({ type: 'SYNC' }, sender, () => { replied = true; }), undefined);
     assert.equal(replied, false);
   }
-  assert.equal(local.feishuAuthPaused, undefined);
   chrome.runtime.onStartup.emit(); await drain();
   assert.equal(sends.length, 0);
   assert.equal(alarms.has('daily-reading'), false);
@@ -83,6 +68,18 @@ test('worker syncs capture/status through HTTPS; server exclusively owns daily r
   assert.equal((await setRead(true)).ok, true);
   assert.equal(records[1].fields.阅读状态, '已读');
   assert.equal(local.items.find(item => item.id === captured.id).read, true);
+  unavailable = true;
+  const beforeFailure = structuredClone(local.items);
+  assert.equal((await setRead(false)).ok, false);
+  assert.deepEqual(local.items, beforeFailure);
+  const previousKey = local.connectionAccessKey;
+  const failedSettings = await new Promise(resolve => chrome.runtime.onMessage.emit(
+    { type: 'SAVE_SETTINGS', settings: { language: 'zh', connectionAccessKey: 'b'.repeat(43) } },
+    { id: 'test', frameId: 0, url: chrome.runtime.getURL('src/options.html') }, resolve));
+  assert.equal(failedSettings.ok, false);
+  assert.equal(local.connectionAccessKey, previousKey);
+  assert.equal(local.settings.language, 'en');
+  unavailable = false;
   assert.equal((await setRead(false)).ok, true);
   assert.equal(records[1].fields.阅读状态, '待阅读');
   assert.equal(sends.length, 0);

@@ -1,0 +1,9 @@
+{
+  "connectionId": "YOUR_VERIFIED_CONNECTION_ID",
+  "baseToken": "YOUR_BITABLE_BASE_TOKEN",
+  "articleTableId": "tblYOUR_TABLE_ID",
+  "chatId": "",
+  "remindersEnabled": false,
+  "timeZone": "Asia/Shanghai",
+  "language": "en"
+}

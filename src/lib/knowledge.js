@@ -1,6 +1,6 @@
 import { isSafeArticleUrl } from './security.js';
-import { callServer } from './server-bridge.js';
-export const callKnowledge = (action, payload) => callServer(action, payload);
+import { callConnection } from './connection.js';
+export const callKnowledge = (action, payload) => callConnection(action, payload);
 
 // Only reconcile IDs/status from Feishu; notes remain authoritative there.
 export function mergeKnowledge(items, result) {

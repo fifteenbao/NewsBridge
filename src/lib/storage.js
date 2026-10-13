@@ -1,6 +1,7 @@
 import { SafeError, isSafeArticleUrl } from './security.js';
 import { callKnowledge } from './knowledge.js';
-import { callServer } from './server-bridge.js';
+import { callConnection, validAccessKey } from './connection.js';
+import { CONNECTION_ORIGIN } from './connection-config.js';
 
 const ITEMS_KEY = 'items';
 const SETTINGS_KEY = 'settings';
@@ -49,11 +50,12 @@ export function validateSettings(settings) {
 }
 export async function setSettings(settings) {
   const next = validateSettings(settings);
-  if (settings.serverAccessKey) {
-    if (!/^[A-Za-z0-9_-]{43}$/.test(settings.serverAccessKey)) throw new SafeError('Invalid server access key.');
+  if (settings.connectionAccessKey && !CONNECTION_ORIGIN) throw new SafeError('This offline build has no connection configured.');
+  if (settings.connectionAccessKey) {
+    if (!validAccessKey(settings.connectionAccessKey)) throw new SafeError('Invalid connection access key.');
   }
-  await callServer('preferences', { language: next.language }, { accessKey: settings.serverAccessKey });
-  if (settings.serverAccessKey) await chrome.storage.local.set({ serverAccessKey: settings.serverAccessKey });
+  await callConnection('preferences', { language: next.language }, { accessKey: settings.connectionAccessKey });
+  if (settings.connectionAccessKey) await chrome.storage.local.set({ connectionAccessKey: settings.connectionAccessKey, connectionOrigin: CONNECTION_ORIGIN });
   await chrome.storage.local.set({ [SETTINGS_KEY]: next });
   return next;
 }

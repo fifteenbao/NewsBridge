@@ -1,14 +1,14 @@
 {
   "name": "newsbridge",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Open-source Chrome extension to save articles and videos, and organize content, reading status, and notes in Feishu Bitable.",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test",
     "security": "node scripts/security-check.mjs",
-    "server": "node server/api.js",
-    "daily": "node server/daily.js"
+    "build": "node scripts/build-extension.mjs",
+    "doctor": "node scripts/doctor.mjs"
   },
   "engines": {
     "node": ">=22"

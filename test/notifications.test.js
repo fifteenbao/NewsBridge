@@ -5,7 +5,7 @@ import { buildReadingMessage } from '../src/lib/messages.js';
 
 const today = { deliveryDate: '2026-10-12' };
 const config = { baseToken: 'base123', articleTableId: 'tblArticles', schema: 'briefing',
-  appId: 'cli_test', accountId: 'ou_test', notifications: { chatId: 'oc_reading123', mentionOpenId: 'ou_reader123' } };
+  connectionId: 'test-user', notifications: { chatId: 'oc_reading123', mentionOpenId: 'ou_reader123' } };
 const article = index => ({ recordId: `rec${index}`, title: `Article ${index}`, url: `https://example.com/${index}`,
   savedAt: Date.UTC(2026, 0, index + 1), read: false, topicIds: [], content: 'A summary', note: 'A personal note' });
 function fixture(count, { snapshots, stateStore, clock } = {}) {

@@ -2,9 +2,9 @@ import { SafeError } from '../src/lib/security.js';
 import { createKnowledgeService } from '../src/lib/bitable.js';
 import { createReadingService } from '../src/lib/notifications.js';
 import { validateFeishuOperation } from '../src/lib/api-policy.js';
-import { createCliClient } from './cli.js';
+import { createAdapterClient } from './client.js';
 
-const scopeKey = config => JSON.stringify([config.appId, config.accountId, config.baseToken, config.articleTableId, config.chatId || undefined]);
+const scopeKey = config => JSON.stringify([config.connectionId, config.baseToken, config.articleTableId, config.chatId || undefined]);
 const recordId = id => /^rec[A-Za-z0-9]{1,128}$/.test(id);
 function validateReceipts(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length > 10000 ||
@@ -26,15 +26,15 @@ function validateScope(scope, config) {
     } });
   }
 }
-export function createHelperBridge({ config, run, store, now = () => Date.now() }) {
-  const client = createCliClient(config, run);
+export function createBridge({ config, adapter, store, now = () => Date.now() }) {
+  const client = createAdapterClient(config, adapter);
   const key = scopeKey(config);
   const reading = createReadingService({ knowledge: createKnowledgeService(client.request), config, request: client.request, store, now });
   return async (action, payload = {}) => {
-    if (!['health', 'sync', 'read', 'pending', 'resolve'].includes(action)) throw new SafeError('Unsupported local operation.');
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new SafeError('Invalid helper request.');
-    if (payload.expectedIdentity && (payload.expectedIdentity.appId !== config.appId || payload.expectedIdentity.openId !== config.accountId)) {
-      throw new SafeError('The helper account/app differs from this collection. Use a separate Chrome profile rather than transferring cached reading data.');
+    if (!['health', 'sync', 'read', 'pending', 'resolve'].includes(action)) throw new SafeError('Unsupported connection operation.');
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new SafeError('Invalid connection request.');
+    if (payload.expectedIdentity && (payload.expectedIdentity.connectionId !== config.connectionId || payload.expectedIdentity.base !== `${config.baseToken}/${config.articleTableId}`)) {
+      throw new SafeError('The connection identity or table differs from this collection. Use a separate Chrome profile rather than transferring cached reading data.');
     }
     await client.verifyIdentity();
     if (action === 'health') return { ok: true, connected: true, configuration: {
@@ -63,10 +63,10 @@ export function createHelperBridge({ config, run, store, now = () => Date.now() 
         { data: { fields: { 阅读状态: payload.read ? '已读' : '待阅读' } } });
       return { ok: true };
     }
-    // The client supplies captures and reminder date, never recipient/API/CLI paths.
+    // Only the trusted scheduler supplies a reminder date; browser dispatch strips it.
     const result = await reading.sync({ items: payload.items || [], language: payload.language === 'zh' ? 'zh' : 'en',
       deliveryDate: payload.deliveryDate || null });
     return { ok: true, enabled: true, base: `${config.baseToken}/${config.articleTableId}`, ...result,
-      identity: { appId: config.appId, openId: config.accountId } };
+      identity: { connectionId: config.connectionId, base: `${config.baseToken}/${config.articleTableId}` } };
   };
 }

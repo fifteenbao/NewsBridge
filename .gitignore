@@ -1,39 +1,17 @@
-# Dependencies (none required, but ignore if ever added)
 node_modules/
-
-# OS noise
 .DS_Store
-
-# Local preview/scratch files
-src/_preview_*.html
-.playwright-mcp/
-helper/knowledge.config.json
-helper/notification-state.json
-helper/notification-state.json.*.tmp
-helper/notification-state.json.lock
-
-# Credentials and local tooling artifacts
-.dev.vars
-.dev.vars.*
 .env
 .env.*
-
-# Private keys and local deployment exports
+.dev.vars
+.dev.vars.*
 *.key
 *.pem
 *.p12
 *.pfx
 *.jks
-
-# Native helper private configuration and receipts
-helper/notification-state.lock*
-helper/notification-state.*.tmp
-helper/native-launcher.sh
-
-# Server credentials, browser service key and delivery journal
-server/server.config.json
-server/private/
-server/browser-token.txt
-
-# Personal domains and prepared deployment configurations
-deploy/private/
+private/
+dist/
+connection.config.json
+notification-state*
+.playwright-mcp/
+src/_preview_*.html

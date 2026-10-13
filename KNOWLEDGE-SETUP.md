@@ -1,8 +1,8 @@
 # NewsBridge reading table / 阅读表配置
 
-Use one eight-column Feishu Bitable. The server connects through its authorized lark-cli workspace. Follow [SETUP.md](SETUP.md) for the connection and [README](README.md) / [中文说明](README.zh-CN.md) for the reading workflow.
+Use one eight-column Feishu Bitable. Your existing authorized connection implements the NewsBridge contract. Follow [SETUP.md](SETUP.md) for the connection and [README](README.md) / [中文说明](README.zh-CN.md) for the reading workflow.
 
-使用一个八字段飞书多维表格，由服务器通过已授权的 CLI 访问。连接步骤和阅读流程见上述文档。
+使用一个八字段飞书多维表格，由用户已有的授权连接通过 NewsBridge 接口访问。连接步骤和阅读流程见上述文档。
 
 | Field / 字段 | Type / 类型 | Purpose / 用途 |
 | --- | --- | --- |
