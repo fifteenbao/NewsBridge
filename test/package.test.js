@@ -12,7 +12,9 @@ test('extension archives contain only installable assets, default offline and pr
   t.after(() => rm(outputRoot, { recursive: true, force: true }));
   const source = await readFile(new URL('../manifest.json', import.meta.url), 'utf8');
   const offline = await buildExtension({ outputRoot });
+  assert.deepEqual(await readFile(offline.versionArchive), await readFile(offline.archive));
   const manifest = JSON.parse(await readFile(join(offline.directory, 'manifest.json'), 'utf8'));
+  assert.ok(offline.versionArchive.endsWith(`newsbridge-V${manifest.version}.zip`));
   assert.equal(manifest.host_permissions, undefined);
   assert.match(manifest.content_security_policy.extension_pages, /connect-src 'none';/);
   assert.deepEqual((await readdir(offline.directory)).sort(), ['LICENSE', 'icons', 'manifest.json', 'src']);
@@ -23,7 +25,7 @@ test('extension archives contain only installable assets, default offline and pr
     offset += 30 + size + bytes;
   }
   assert.ok(names.includes('manifest.json')); assert.ok(names.includes('src/service-worker.js'));
-  assert.equal(names.some(name => /private|connector|test|config\.json/.test(name)), false);
+  assert.equal(names.some(name => /private|connector|test|config\.json|(?:^|\/)\./.test(name)), false);
   const connected = await buildExtension({ baseUrl: 'https://connection.example.com/newsbridge/', outputRoot });
   const configured = JSON.parse(await readFile(join(connected.directory, 'manifest.json'), 'utf8'));
   assert.deepEqual(configured.host_permissions, ['https://connection.example.com/*']);

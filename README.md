@@ -16,7 +16,13 @@ Use **Google Chrome 106 or later**. NewsBridge is installed by loading an unpack
 
 ### Connection settings
 
-Settings opens on first install. Later, **right-click the NewsBridge icon → Settings**. Paste your **Feishu Bitable link** (direct `/base/…?table=tbl…` link) and the connection's dedicated access key, then select **Save settings / Check connection**. The page checks table identity and all eight field types and shows actionable diagnostics. A table link identifies the destination; it does not authorize API access. The connected build and host authorization are still required; offline builds only save the link locally. A different table cannot silently replace an existing collection. See [startup order and runnable reference](SETUP.md#runnable-reference-and-startup-order--可运行参考与启动顺序).
+Settings opens on first install. Later, **right-click the NewsBridge icon → Settings**. Choose **English / 简体中文** for the interface; Feishu reminder language is set separately.
+
+- **Connection key:** get it from your connection operator. For the reference implementation, run initialization and read `stateDir/access.key` (the example uses `private/state/access.key`). Acquisition steps are also shown on the page.
+- **Table link:** paste a `/base/…` or `/wiki/…` share link. Direct links with `table=tbl…` fill both IDs immediately. Without `table=`, use the verified connection’s configured table in the same base; wiki links resolve through the connection during the check. **Check connection** verifies the target and fields; **Save settings** stores the key and preferences.
+- **Reminder conversation ID:** returned by the connection service, cannot be derived from a table link, and is needed only for daily reminders. Table sync works without it.
+
+The connected build and host authorization are required for sync; offline builds save locally. A parsed link grants no access and cannot silently switch an existing collection to another table. See [startup order and runnable reference](SETUP.md#runnable-reference-and-startup-order--可运行参考与启动顺序).
 
 ### Download the extension or source
 
@@ -63,7 +69,7 @@ With Node.js 22+ and npm installed, open a terminal in the project root containi
 npm run build
 ```
 
-This creates the loadable directory `dist/newsbridge/` and archive `dist/newsbridge.zip`. No `npm install` is required. Node.js is needed only for packaging and development, not for daily extension use.
+This creates the loadable directory `dist/newsbridge/`, archive `dist/newsbridge.zip`, and a versioned copy such as `dist/newsbridge-V0.2.0.zip`. No `npm install` is required. Node.js is needed only for packaging and development, not for daily extension use.
 
 ### Installation help
 
@@ -109,7 +115,7 @@ Your existing scheduler can trigger the connection module at **10:00 Asia/Shangh
 
 It rereads Bitable before sending, excludes read or deleted material, and sends up to 20 linked items per message. There is no five-item threshold. Sending does not mark content read. A completed day is not repeated; later captures wait until tomorrow, and still-unread items can recur the next day. A delayed check catches up only the current day after 10:00.
 
-Chrome never sends scheduled reminders itself. Delivery requires the chosen scheduler and connection to remain available. Uncertain delivery pauses when its retry window expires or its content/status changes; check the conversation before resolving it in Settings.
+The Settings switch pauses/resumes reminders through a saved server preference once the host scheduler is configured. Chrome never sends scheduled reminders itself. Delivery requires the chosen scheduler and connection to remain available. Uncertain delivery pauses when its retry window expires or its content/status changes; check the conversation before resolving it in Settings.
 
 ## Daily Briefing template
 

@@ -32,21 +32,20 @@ export function validateConfig(config = {}) {
 export function inspectArticleFields(fields) {
   const issues = [];
   for (const [name, type] of Object.entries(ARTICLE_FIELDS)) {
-    const expected = name === '链接' ? [15, 1] : name === '类别' ? [3, 4] : name === '推荐指数' ? [2, 20] : [type];
+    const expected = name === '链接' ? [15, 1] : name === '类别' ? [3, 4] : [type];
     const matches = fields.filter(f => f.field_name === name);
     const actual = matches.length === 1 && Number.isSafeInteger(matches[0].type) ? matches[0].type : null;
     if (!expected.includes(actual)) issues.push({ name, expected, actual });
   }
   if (issues.length) throw new DiagnosticError('SCHEMA_INVALID', 'fields', { fields: issues });
-  return { valid: true, checkedFields: 8 };
+  return { valid: true, checkedFields: 8, fieldTypes: Object.fromEntries(Object.keys(ARTICLE_FIELDS).map(name => [name, fields.find(f => f.field_name === name).type])) };
 }
 
 export function checkFields(fields, expected, label, topicTableId) {
   for (const [name, type] of Object.entries(expected)) {
     const field = fields.find(f => f.field_name === name);
     const compatible = (type === 18 && field?.type === 21) ||
-      (name === '链接' && field?.type === 1) || (name === '类别' && field?.type === 4) ||
-      (name === '推荐指数' && field?.type === 20);
+      (name === '链接' && field?.type === 1) || (name === '类别' && field?.type === 4);
     if (!field || (field.type !== type && !compatible)) {
       throw new SafeError(`${label}的「${name}」字段缺失或类型不正确，请按 README 配置。`);
     }
@@ -82,7 +81,9 @@ export function createKnowledgeService(request) {
     let token;
     do {
       const page = await api('GET', path, { params: { page_size: 100, ...(token ? { page_token: token } : {}) } });
-      if (!Array.isArray(page.items)) throw new SafeError('飞书未返回完整列表，请检查飞书授权权限。');
+      if (path.endsWith('/records') && page.items == null && page.has_more !== true &&
+          (page.total === 0 || page.has_more === false && page.total === undefined)) page.items = [];
+      if (!Array.isArray(page.items)) throw new DiagnosticError('API_RESPONSE', path.endsWith('/fields') ? 'fields' : 'records.list');
       if (all.length + page.items.length > 10000) throw new SafeError('The table exceeds the 10000-record sync limit.');
       all.push(...page.items);
       if (!page.has_more) return all;

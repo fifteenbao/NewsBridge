@@ -9,41 +9,76 @@
   <body class="options">
     <div class="options-wrap">
       <header class="options-head"><div class="brand"><span class="mark">NewsBridge</span></div></header>
-      <p class="options-lede">Save articles and videos worth your time. Organize your collection in Feishu Bitable.</p>
-      <nav class="dash-nav"><a href="#reading-list">Reading list</a><a href="#settings">Settings</a></nav>
+      <p class="options-lede" data-i18n="lede">Save articles and videos worth your time. Organize your collection in Feishu Bitable.</p>
+      <nav class="dash-nav"><a href="#reading-list" data-i18n="readingList">Reading list</a><a href="#settings" data-i18n="settings">Settings</a></nav>
       <section id="reading-list">
-        <div class="section-head"><h1 class="display-h">Reading list</h1><span class="count" id="list-count"></span></div>
+        <div class="section-head"><h1 class="display-h" data-i18n="readingList">Reading list</h1><span class="count" id="list-count"></span></div>
         <div class="card list-card"><ul class="list dash-list" id="list"></ul></div>
       </section>
       <section id="settings">
-        <div class="section-head"><h2 class="display-h">Settings</h2></div>
+        <div class="section-head"><h2 class="display-h" data-i18n="settings">Settings</h2></div>
         <section class="card">
-          <h3>Feishu connection</h3>
-          <p class="card-note">Collect locally or sync through your existing Feishu connection. Its tool manages authorization and optional reminders.</p>
-          <div class="field"><div><label class="field-label" for="connectionAccessKey">Connection access key</label><p class="field-hint">Use the access key issued by your connection. Leave blank to keep the saved key.</p></div><div class="field-control"><input type="password" id="connectionAccessKey" autocomplete="off" spellcheck="false" /></div></div>
-          <div class="field"><div><label class="field-label" for="tableUrl">Feishu Bitable link / 多维表格链接</label><p class="field-hint" id="table-url-hint">Paste the direct /base/ link including ?table=tbl… . This identifies your table; it does not grant access. The connection operator must authorize the same table. / 粘贴含 table 参数的表格链接，连接服务仍需授权此表。</p></div><div class="field-control"><input type="url" id="tableUrl" autocomplete="off" spellcheck="false" aria-describedby="table-url-hint table-url-error" /><p id="table-url-error" role="status" aria-live="polite"></p></div></div>
-          <div class="field"><div><label class="field-label" for="baseToken">Bitable base token</label><p class="field-hint">The identifier after /base/ in your table URL.</p></div><div class="field-control"><input type="text" id="baseToken" autocomplete="off" readonly /></div></div>
-          <div class="field"><div><label class="field-label" for="articleTableId">Table ID</label><p class="field-hint">The table= value, starting with tbl.</p></div><div class="field-control"><input type="text" id="articleTableId" autocomplete="off" readonly /></div></div>
-          <div class="field"><div><label class="field-label" for="chatId">Feishu conversation ID</label><p class="field-hint">Your configured chat_id, starting with oc_.</p></div><div class="field-control"><input type="text" id="chatId" autocomplete="off" readonly /></div></div>
-          <div class="options-foot"><button class="save-btn" id="check-connection">Check connection</button><button class="save-btn" id="sync">Sync reading library</button></div>
-          <p class="card-note" id="auth-status" role="status" aria-live="polite"></p>
-          <h3>Reading messages</h3>
-          <p class="card-note">Messages go to your configured Feishu conversation. Sending a reminder does not mark its items as read. Unread items are included again the next day.</p>
-          <p class="card-note" id="schedule-note">Daily reminders are optional and run through your connected tool. Sending does not mark items read.</p>
           <div class="field">
-            <div><label class="field-label" for="language">Message language</label></div>
-            <div class="field-control"><select id="language"><option value="en">English</option><option value="zh">简体中文</option></select></div>
+            <div><label class="field-label" for="ui-language" data-i18n="interfaceLanguage">Interface language</label><p class="field-hint" id="ui-language-hint" data-i18n="interfaceHint">Saved on this device. This does not change the language of Feishu reminders.</p></div>
+            <div class="field-control"><select id="ui-language" aria-describedby="ui-language-hint"><option value="en">English</option><option value="zh">简体中文</option></select></div>
+          </div>
+          <h3 data-i18n="connection">Feishu connection</h3>
+          <p class="card-note" data-i18n="connectionHint">Save locally, or connect your authorized Feishu workspace to sync your collection.</p>
+          <div class="field">
+            <div><label class="field-label" for="connectionAccessKey" data-i18n="accessKey">Connection access key</label><p class="field-hint" id="key-hint" data-i18n="keyHint">Get the dedicated NewsBridge key from whoever configured your connection service, or from its existing credential store.</p></div>
+            <div class="field-control"><input type="password" id="connectionAccessKey" aria-describedby="key-hint key-safety key-status key-validation" autocomplete="off" spellcheck="false" /></div>
+          </div>
+          <details class="key-guide">
+            <summary data-i18n="keyHow">Using the reference connection yourself?</summary>
+            <p class="card-note" data-i18n="keyInit">Run this command in the project folder on the machine running your connection, after preparing private/host.json:</p>
+            <pre><code>node examples/run.mjs init private/host.json</code></pre>
+            <p class="card-note" data-i18n="keyFile">Open access.key in your configured stateDir and paste its contents here. The example configuration uses private/state/access.key. Initialization preserves an existing key.</p>
+          </details>
+          <p id="key-safety" class="card-note" data-i18n="keySafety">Use the connection key here, not a Feishu App Secret or access token. Leave blank to keep a saved key. To rotate it, replace the host key, then enter and save the new key here. Reinstallation or another Chrome profile may require entering it again.</p>
+          <p id="key-status" class="card-note" role="status" aria-live="polite"></p>
+          <p id="key-validation" class="card-note" role="status" aria-live="polite"></p>
+          <div class="field">
+            <div><label class="field-label" for="tableUrl" data-i18n="tableLink">Feishu Bitable link</label><p class="field-hint" id="table-url-hint" data-i18n="tableHint">Paste a Feishu /base/ or /wiki/ share link. Links without table= use the connected service’s configured table in the same base. Wiki links resolve when you check the connection.</p></div>
+            <div class="field-control"><input type="url" id="tableUrl" autocomplete="off" spellcheck="false" aria-describedby="table-url-hint table-url-error" /><p id="table-url-error" role="status" aria-live="polite"></p></div>
+          </div>
+          <div class="field">
+            <div><label class="field-label" for="baseToken" data-i18n="baseToken">Bitable base token</label><p class="field-hint" id="base-hint" data-i18n="baseHint">Parsed from /base/, or returned after resolving a wiki link.</p></div>
+            <div class="field-control"><input type="text" id="baseToken" data-i18n-placeholder="idPlaceholder" placeholder="Paste a table link to fill automatically" aria-describedby="base-hint table-id-source" autocomplete="off" readonly /></div>
+          </div>
+          <div class="field">
+            <div><label class="field-label" for="articleTableId" data-i18n="tableId">Table ID</label><p class="field-hint" id="table-id-hint" data-i18n="tableIdHint">From table= when present; otherwise from the verified connection’s configured table.</p></div>
+            <div class="field-control"><input type="text" id="articleTableId" data-i18n-placeholder="idPlaceholder" placeholder="Paste a table link to fill automatically" aria-describedby="table-id-hint table-id-source" autocomplete="off" readonly /></div>
+          </div>
+          <p id="table-id-source" class="card-note" role="status" aria-live="polite"></p>
+          <div class="options-foot"><button class="save-btn" id="check-connection" data-i18n="check">Check connection / Retry</button><button class="save-btn" id="sync" disabled aria-describedby="sync-help" data-i18n="sync">Sync reading library</button></div>
+          <p class="card-note" id="sync-help"></p>
+          <p class="card-note" id="auth-status" role="status" aria-live="polite"></p>
+          <h3 data-i18n="messages">Reading reminders</h3>
+          <p class="card-note" data-i18n="reminderExplanation">Only daily reminders need a conversation ID. Saving and syncing Bitable work without one. A reminder never marks an item as read.</p>
+          <div class="field">
+            <div><label class="field-label" for="remindersEnabled" data-i18n="reminders">Daily unread reminders</label><p id="reminder-help" class="field-hint" data-i18n="reminderHint">Optional. Configure the connection scheduler first; save settings to apply this switch.</p></div>
+            <div class="field-control"><input type="checkbox" id="remindersEnabled" disabled aria-describedby="reminder-help schedule-note" /></div>
+          </div>
+          <div class="field">
+            <div><label class="field-label" for="chatId" data-i18n="chatId">Reminder conversation ID</label><p class="field-hint" id="chat-id-hint" data-i18n="chatHint">For reminders only. Returned by the connection service (chat_id, usually oc_…). It cannot be derived from a Bitable link; configure the target conversation in that service.</p></div>
+            <div class="field-control"><input type="text" id="chatId" data-i18n-placeholder="chatPlaceholder" placeholder="Optional — configure on the connection for reminders" aria-describedby="chat-id-hint" autocomplete="off" readonly /></div>
+          </div>
+          <p class="card-note" id="schedule-note"></p>
+          <div class="field">
+            <div><label class="field-label" for="language" data-i18n="reminderLanguage">Reminder message language</label><p class="field-hint" id="reminder-language-hint" data-i18n="reminderLanguageHint">Changes Feishu reminder messages. Interface language is set separately above.</p></div>
+            <div class="field-control"><select id="language" aria-describedby="reminder-language-hint"><option value="en">English</option><option value="zh">简体中文</option></select></div>
           </div>
         </section>
-        <div class="options-foot"><button class="save-btn" id="save">Save settings</button><span class="saved-note" id="saved-note" role="status">Saved</span></div>
+        <div class="options-foot"><button class="save-btn" id="save" data-i18n="save">Save settings</button><span class="saved-note" id="saved-note" role="status" data-i18n="saved">Saved</span></div>
         <section class="card" id="pending-card" hidden>
-          <h3>Check an unconfirmed message</h3>
+          <h3 data-i18n="pendingHeading">Check an unconfirmed message</h3>
           <p class="card-note" id="pending-note"></p>
-          <p class="card-note">Check the target Feishu conversation before choosing a result. These actions preserve previous delivery receipts.</p>
-          <div class="options-foot"><button class="save-btn" id="confirm-sent">I verified it was delivered</button><button class="save-btn" id="confirm-not-sent">I verified it was not delivered</button></div>
+          <p class="card-note" data-i18n="pendingHint">Check the target Feishu conversation before choosing a result. Previous delivery receipts are preserved.</p>
+          <div class="options-foot"><button class="save-btn" id="confirm-sent" data-i18n="confirmSent">I verified it was delivered</button><button class="save-btn" id="confirm-not-sent" data-i18n="confirmNotSent">I verified it was not delivered</button></div>
         </section>
         <p class="card-note" id="sync-status" role="status" aria-live="polite"></p>
       </section>
+      <p id="connection-meta" class="card-note"></p>
     </div>
     <script type="module" src="options.js"></script>
   </body>

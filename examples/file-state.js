@@ -53,7 +53,15 @@ export async function createFileState({ stateDir }) {
       finally { await unlink(join(dir, name)).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
     },
   };
-  return { store, exclusive, checkAccessKey: async () => { await accessKey(); },
+  return { store, exclusive,
+    async audit() {
+      privateFile(await lstat(dir), true);
+      await read('state.json'); await accessKey();
+      const state = await store.load();
+      if (state.version !== 1 || !state.scopes || typeof state.scopes !== 'object' || Array.isArray(state.scopes)) throw new Error('Invalid state.');
+      return { ok: true, directory: '0700 or stricter', files: '0600 or stricter', owner: 'current uid', hardLinks: 1, probeCleanupRequired: !!state.probe };
+    },
+    checkAccessKey: async () => { await accessKey(); },
     // Explicit initialization only. Restarting must never erase receipts or rotate the key.
     initialize: () => exclusive(async () => {
       for (const [name, value] of [['state.json', JSON.stringify({ version: 1, scopes: {} })], ['access.key', randomBytes(32).toString('base64url')]]) {

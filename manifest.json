@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NewsBridge",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Open-source Chrome extension to save articles and videos, and organize content, reading status, and notes in Feishu Bitable.",
   "action": {
     "default_title": "Save this page to NewsBridge",

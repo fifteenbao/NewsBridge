@@ -15,7 +15,7 @@ export async function buildExtension({ baseUrl = '', outputRoot = new URL('../di
   async function add(name) {
     const path = join(root, name), info = await lstat(path);
     if (info.isSymbolicLink()) throw new Error('Symlinks are not allowed in extension packages.');
-    if (info.isDirectory()) { for (const child of (await readdir(path)).sort()) await add(`${name}/${child}`); return; }
+    if (info.isDirectory()) { for (const child of (await readdir(path)).sort()) { if (!child.startsWith('.')) await add(`${name}/${child}`); } return; }
     entries.push({ name, data: await readFile(path) });
   }
   for (const name of ['manifest.json', 'src', 'icons', 'LICENSE']) await add(name);
@@ -24,10 +24,12 @@ export async function buildExtension({ baseUrl = '', outputRoot = new URL('../di
   manifest.content_security_policy.extension_pages = manifest.content_security_policy.extension_pages.replace(/connect-src [^;]+;/, `connect-src ${origin || "'none'"};`);
   entries.find(e => e.name === 'manifest.json').data = Buffer.from(JSON.stringify(manifest, null, 2) + '\n');
   entries.find(e => e.name === 'src/lib/connection-config.js').data = Buffer.from(`export const CONNECTION_BASE_URL = ${JSON.stringify(baseUrl)};\n`);
+  if (!/^\d+(?:\.\d+){0,3}$/.test(manifest.version)) throw new Error('Invalid extension version.');
+  const versionArchive = join(outRoot, `${name}-V${manifest.version}.zip`);
   // Only a designated generated directory is replaced; never the repository.
   if (output === root || relative(root, outRoot) === '') throw new Error('Choose a build output directory.');
   await mkdir(outRoot, { recursive: true, mode: 0o700 });
-  for (const path of [outRoot, output, output + '.zip']) {
+  for (const path of [outRoot, output, output + '.zip', versionArchive]) {
     try { if ((await lstat(path)).isSymbolicLink()) throw new Error('Build output must not be a symlink.'); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
@@ -38,8 +40,10 @@ export async function buildExtension({ baseUrl = '', outputRoot = new URL('../di
     await mkdir(resolve(target, '..'), { recursive: true, mode: 0o700 });
     await writeFile(target, entry.data, { mode: 0o600 });
   }
-  await writeFile(output + '.zip', zip(entries), { mode: 0o600 });
-  return { directory: output, archive: output + '.zip', connected: !!origin };
+  const archiveData = zip(entries);
+  await writeFile(output + '.zip', archiveData, { mode: 0o600 });
+  await writeFile(versionArchive, archiveData, { mode: 0o600 });
+  return { directory: output, archive: output + '.zip', versionArchive, connected: !!origin };
 }
 // ZIP STORE records: portable packaging without a shell, OS utility or dependency.
 function crc32(data) {
@@ -76,5 +80,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     } catch { throw new Error('Private build config must contain a nonempty baseUrl.'); }
   }
   const result = await buildExtension({ baseUrl });
-  process.stdout.write(`Extension folder: ${result.directory}\nZIP archive: ${result.archive}\n${result.connected ? 'Private connection build; do not publish.' : 'Offline build; no host permissions.'}\n`);
+  process.stdout.write(`Extension folder: ${result.directory}\nZIP archive: ${result.archive}\nVersioned ZIP: ${result.versionArchive}\n${result.connected ? 'Private connection build; do not publish.' : 'Offline build; no host permissions.'}\n`);
 }

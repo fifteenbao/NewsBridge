@@ -398,7 +398,7 @@ body.options {
 }
 .field-hint {
   font-size: 12px;
-  color: var(--ink-faint);
+  color: var(--ink-soft);
   margin-top: 2px;
   line-height: 1.4;
   max-width: 34ch;
@@ -584,5 +584,20 @@ button:disabled { cursor: default; opacity: .55; }
 @media (prefers-reduced-motion: reduce) { .item { animation: none; } }
 
 /* Connection controls keep long table IDs readable. */
-.field-control input[type="text"], .field-control input[type="url"] { width: 100%; min-width: 220px; font: inherit; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.field-control input[type="text"], .field-control input[type="url"], .field-control input[type="password"] { width: 100%; min-width: 0; font: inherit; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
 [hidden] { display: none !important; }
+
+/* Prevent localized hints and diagnostic strings from widening the form. */
+.field > div:first-child { min-width: 0; flex: 1 1 0; }
+.field-control { flex: 0 1 230px; min-width: 0; }
+.field-control p, .card-note { overflow-wrap: anywhere; }
+.field-control p { max-width: 230px; font-size: 12px; line-height: 1.5; margin-top: 8px; }
+.options-foot { flex-wrap: wrap; }
+.key-guide { font-size: 13px; line-height: 1.6; margin: 0 0 16px; }
+.key-guide summary { cursor: pointer; color: var(--ink); }
+.key-guide pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0; }
+@media (max-width: 540px) {
+  .field { align-items: stretch; flex-direction: column; gap: 10px; }
+  .field-control { flex-basis: auto; width: 100%; }
+  .field-control p { max-width: none; }
+}

@@ -1,3 +1,4 @@
+import { createTableLinkResolver } from './table-link.js';
 import { createBridge } from './bridge.js';
 import { validateConnectorConfig } from './config.js';
 import { DiagnosticError, cleanDiagnostic } from '../src/lib/diagnostics.js';
@@ -9,8 +10,8 @@ export function dueDate(time, timeZone) {
   return Number(values.hour) >= 10 ? `${values.year}-${values.month}-${values.day}` : null;
 }
 const fields = {
-  health: [], sync: ['items'], read: ['base', 'recordId', 'read'], pending: [],
-  resolve: ['uuid', 'outcome'], preferences: ['language', 'table'],
+  health: ['tableUrl'], sync: ['items'], read: ['base', 'recordId', 'read'], pending: [],
+  resolve: ['uuid', 'outcome'], preferences: ['language', 'table', 'tableUrl', 'remindersEnabled'],
 };
 export function createConnector({ config: input, adapter, store: inputStore, exclusive, onDiagnostic = () => {}, now = () => Date.now() }) {
   const config = validateConnectorConfig(input);
@@ -27,12 +28,15 @@ export function createConnector({ config: input, adapter, store: inputStore, exc
     },
     async save(state) { try { await inputStore.save(state); } catch { throw new DiagnosticError('STATE_SAVE', 'state.save'); } },
   };
+  const resolveTableLink = createTableLinkResolver(config, adapter);
   const bridge = createBridge({ config, adapter, store, now });
   const identity = { connectionId: config.connectionId, base: `${config.baseToken}/${config.articleTableId}` };
   let queue = Promise.resolve();
   const serial = (stage, work) => {
     const next = queue.then(() => exclusive(work)).catch(async error => {
       const diagnostic = { ...(cleanDiagnostic(error?.diagnostic) || { code: 'OPERATION_FAILED', stage }), reference: crypto.randomUUID() };
+      const causeStage = diagnostic.stage.replace(/^(health|sync|read|pending|resolve|preferences|daily)\./, '');
+      diagnostic.stage = causeStage === stage ? stage : stage + '.' + causeStage;
       try { await onDiagnostic(diagnostic); } catch { /* Diagnostics must not alter the operation. */ }
       if (error instanceof SafeError && !(error instanceof DiagnosticError)) {
         error.diagnostic = diagnostic; throw error;
@@ -42,6 +46,11 @@ export function createConnector({ config: input, adapter, store: inputStore, exc
     queue = next.catch(() => {});
     return next;
   };
+  async function remindersEnabled() {
+    const value = (await store.load()).preferences?.remindersEnabled;
+    if (value !== undefined && typeof value !== 'boolean') throw new DiagnosticError('STATE_LOAD', 'state.load');
+    return config.remindersEnabled && value !== false;
+  }
   async function language() {
     const value = (await store.load()).preferences?.language || config.language;
     if (!['en', 'zh'].includes(value)) throw new SafeError('Invalid stored language.');
@@ -54,20 +63,24 @@ export function createConnector({ config: input, adapter, store: inputStore, exc
       if (action === 'preferences') {
         if (!['en', 'zh'].includes(payload.language)) throw new SafeError('Invalid message language.');
         if (payload.table !== undefined && payload.table !== identity.base) throw new DiagnosticError('TABLE_MISMATCH', 'preferences');
+        if (payload.remindersEnabled !== undefined && typeof payload.remindersEnabled !== 'boolean') throw new SafeError('Invalid reminder preference.');
+        if (payload.remindersEnabled && !config.remindersEnabled) throw new DiagnosticError('REMINDERS_UNAVAILABLE', 'preferences');
         await bridge('health', payload);
-        const state = await store.load(); state.preferences = { language: payload.language }; await store.save(state);
-        return { ok: true, protocolVersion: 1, identity };
+        const resolvedTable = payload.tableUrl !== undefined ? await resolveTableLink(payload.tableUrl) : undefined;
+        const state = await store.load(); state.preferences = { ...state.preferences, language: payload.language, ...(payload.remindersEnabled !== undefined ? { remindersEnabled: payload.remindersEnabled } : {}) }; await store.save(state);
+        return { ok: true, protocolVersion: 1, identity, ...(resolvedTable ? { resolvedTable } : {}) };
       }
       const result = await bridge(action, { ...payload, deliveryDate: null, language: await language() });
       if (action === 'health') {
+        if (payload.tableUrl !== undefined) result.resolvedTable = await resolveTableLink(payload.tableUrl);
         result.capabilities = { tableRead: true, tableWrite: true, messages: adapter.capabilities.messages === true };
         result.configuration = { ...result.configuration, timeZone: config.timeZone, language: await language(),
-          remindersEnabled: config.remindersEnabled, reminderOwner: 'external' };
+          remindersEnabled: await remindersEnabled(), remindersAvailable: config.remindersEnabled, reminderOwner: 'external' };
       }
       return { ...result, identity, protocolVersion: 1 };
     }),
     daily: () => serial('daily', async () => {
-      if (!config.remindersEnabled) return { ok: true, skipped: true };
+      if (!(await remindersEnabled())) return { ok: true, skipped: true };
       const date = dueDate(now(), config.timeZone);
       if (!date) return { ok: true, skipped: true };
       const result = await bridge('sync', { items: [], deliveryDate: date, language: await language() });

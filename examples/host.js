@@ -22,5 +22,5 @@ export async function createHost(config, { getCredentials = () => ({ appId: proc
   const connector = createConnector({ config: config.connector, adapter, ...persistence, onDiagnostic });
   const handleRequest = createHttpHandler({ baseUrl: config.baseUrl, extensionId: config.extensionId,
     authenticate: persistence.authenticate, connector });
-  return { connector, handleRequest };
+  return { connector, handleRequest, adapter, store: persistence.store, exclusive: persistence.exclusive };
 }

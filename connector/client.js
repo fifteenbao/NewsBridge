@@ -1,4 +1,4 @@
-import { DiagnosticError } from '../src/lib/diagnostics.js';
+import { DiagnosticError, cleanDiagnostic } from '../src/lib/diagnostics.js';
 import { SafeError } from '../src/lib/security.js';
 import { validateFeishuOperation } from '../src/lib/api-policy.js';
 
@@ -12,7 +12,7 @@ export function createAdapterClient(config, adapter) {
     // The adapter must derive this stable identity from verified credentials,
     // not echo the requested configuration or browser payload.
     let identity;
-    try { identity = await adapter.getIdentity(); } catch (error) { if (error instanceof DiagnosticError) throw error; throw new DiagnosticError('AUTH_VERIFY', 'identity'); }
+    try { identity = await adapter.getIdentity(); } catch (error) { const d = cleanDiagnostic(error?.diagnostic); if (d) throw new DiagnosticError(d.code, d.stage, d); throw new DiagnosticError('AUTH_VERIFY', 'identity', { providerCode: error?.providerCode, httpStatus: error?.httpStatus }); }
     if (identity?.connectionId !== config.connectionId) throw new SafeError('Connection identity does not match the configured account.');
   }
   return {
@@ -22,7 +22,7 @@ export function createAdapterClient(config, adapter) {
       await verifyIdentity();
       const stage = path.endsWith('/fields') ? 'fields' : path.endsWith('/messages') ? 'messages.send' : method === 'GET' ? 'records.list' : method === 'PUT' ? 'records.update' : 'records.create';
       let result;
-      try { result = await adapter.request(method, path, options); } catch (error) { if (error instanceof DiagnosticError) throw error; throw new DiagnosticError('API_TRANSPORT', stage); }
+      try { result = await adapter.request(method, path, options); } catch (error) { const d = cleanDiagnostic(error?.diagnostic); if (d) throw new DiagnosticError(d.code, d.stage, d); throw new DiagnosticError(Number.isSafeInteger(error?.providerCode) ? 'API_REJECTED' : 'API_TRANSPORT', stage, { providerCode: error?.providerCode, httpStatus: error?.httpStatus }); }
       if (!result || result.code !== 0 || !result.data || typeof result.data !== 'object' || Array.isArray(result.data)) {
         throw new DiagnosticError(Number.isSafeInteger(result?.code) && result.code !== 0 ? 'API_REJECTED' : 'API_RESPONSE', stage, { providerCode: result?.code });
       }

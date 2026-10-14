@@ -77,10 +77,10 @@ Expose the following authenticated POST endpoints (relative to `baseUrl`) in you
 
 | Path / 路径 | Request / 请求字段 | Result / 结果 |
 | --- | --- | --- |
-| `v1/health` | `{}` | `connected, capabilities, configuration, schema` |
+| `v1/health` | `{tableUrl?: "https://…/base/… or /wiki/…"}` | `connected, capabilities, configuration, schema` |
 | `v1/sync` | `{items: [...]}` | `enabled, base, created, bindings, articles, topics, notifications` |
 | `v1/read` | `{base, recordId, read}` | Status write acknowledged / 状态写入确认 |
-| `v1/preferences` | `{language: "en" or "zh", table?: "baseToken/tableId"}` | Saved preferences / 保存偏好 |
+| `v1/preferences` | `{language: "en" or "zh", table?: "baseToken/tableId", tableUrl?: "https://…", remindersEnabled?: boolean}` | Saved preferences / 保存偏好 |
 | `v1/pending` | `{}` | `{pending: null or {...}}` |
 | `v1/resolve` | `{uuid, outcome: "sent" or "not-sent"}` | Delivery reconciliation / 发送结果确认 |
 
@@ -88,7 +88,7 @@ Every request may include `expectedIdentity: {connectionId, base}`. Reject a mis
 
 请求可携带预期身份，必须先校验再处理数据；每个成功响应必须包含协议版本和身份。浏览器固定首次验证的身份，拒绝静默切换账号或表格。
 
-Health capabilities require tableRead and tableWrite; messages is optional. Configuration returns baseToken, articleTableId, chatId, language, timeZone, remindersEnabled and `reminderOwner: "external"`. No credentials are returned. The provided runtime produces these results directly.
+Health capabilities require tableRead and tableWrite; messages is optional. Configuration returns baseToken, articleTableId, chatId, language, timeZone, remindersEnabled, remindersAvailable and `reminderOwner: "external"`. No credentials are returned. The provided runtime produces these results directly.
 
 健康检查返回能力和只读配置，不返回凭证。仓库提供的运行模块会直接生成符合协议的结果。
 
@@ -172,10 +172,43 @@ The adapter passes API field values through; the core writes plain strings to te
 | 内容 | 1 text / 文本 | content string, default empty / 默认空 | string or rich-text text / 富文本提取纯文本 |
 | 类别 | 3 single, 4 multiple / 单选、多选 | 3: `"待分类"`; 4: `["待分类"]` | string or joined options with 、 / 多选以顿号拼接 |
 | 阅读状态 | 3 single / 单选 | `"待阅读"` or `"已读"` | 待阅读、阅读中 → read=false; all others → true, excluded from unread reminders / 其他状态不提醒 |
-| 推荐指数 | 2 number, 20 rating / 数字、评分 | omitted, no invented rating / 不自动评分 | number or null / 数字或空 |
+| 推荐指数 | 2 number/rating / 数字、评分（Rating） | omitted, no invented rating / 不自动评分 | number or null / 数字或空 |
 | 笔记 | 1 text / 文本 | empty string / 空字符串 | string or rich-text text; formatting not copied / 不复制排版 |
 | 时间 | 5 date / 日期 | Unix milliseconds from savedAt / 毫秒时间戳 | milliseconds or null; adapters must normalize custom date formats / 自定义日期须先转换 |
 
-Text reads accept strings or arrays containing strings / `{text: "..."}`; other segments contribute no text. Text is capped at 64,000 characters. Existing Feishu content and notes are never rewritten from a stale browser copy; explicit read changes update only 阅读状态. Health validates numeric field types; option permissions, advanced table access rules and write authorization still need separate verification. Wiki links require resolution to a direct base/table by the operator; the extension does not guess wiki node tokens.
+Text reads accept strings or arrays containing strings / `{text: "..."}`; other segments contribute no text. Text is capped at 64,000 characters. Existing Feishu content and notes are never rewritten from a stale browser copy; explicit read changes update only 阅读状态. Health validates numeric field types; option permissions, advanced table access rules and write authorization still need separate verification. Wiki links resolve through the optional authenticated adapter resolver; the extension never uses a wiki node token as a base token.
 
-读取文本允许字符串或含字符串、text 对象的数组，最多 64,000 字符；不识别的富文本片段忽略。已有内容与笔记以飞书为准，状态修改只写阅读状态。预检不保证单选选项变更权限或高级权限可写。知识库链接应由连接配置方解析为直接 base/table 链接。
+读取文本允许字符串或含字符串、text 对象的数组，最多 64,000 字符；不识别的富文本片段忽略。已有内容与笔记以飞书为准，状态修改只写阅读状态。预检不保证单选选项变更权限或高级权限可写。知识库链接由可选的已鉴权适配器解析，不将知识库 node_token 当成 baseToken。
+
+Rating uses type 2 (`ui_type: Rating`); type 20 is a formula and is not accepted as 推荐指数. See [official field reference](https://github.com/larksuite/openclaw-lark/blob/main/skills/feishu-bitable/references/field-properties.md).
+
+评分属于 type=2，type=20 是公式，预检不将公式当作评分接受。
+
+## Setup feedback additions / 设置反馈补充
+
+`preferences.remindersEnabled` is optional. Persist it with language, preserving omitted preferences. The effective value is the host's enabled reminder capability AND the saved preference is not false. Reject true with REMINDERS_UNAVAILABLE when the host has not configured reminders. Health exposes remindersAvailable (host capability) and remindersEnabled (effective saved state). A browser preference never invokes daily(); the scheduler reads it under the same lock. Disabling does not discard pending UUIDs or delivery receipts.
+
+提醒偏好省略时保留原值；服务端能力未启用则拒绝开启。health 同时返回可用性与实际开关状态。修改开关不发送消息、不清空历史或待确认状态，调度器使用同一共享锁读取最新值。
+
+Diagnostics qualify the stage with the operation, for example `sync.records.list`, `health.fields`, or `pending.state.load`. Adapter-supplied allowlisted diagnostics and numeric providerCode/httpStatus survive wrapping; raw provider messages remain excluded. CLI checks emit this structured data to stderr. Empty tables are successful syncs, not EMPTY_TABLE errors. The reference operator-only probe can GET/DELETE just its newly created record; no browser endpoint or general adapter request gains delete access.
+
+诊断步骤包含操作前缀，保留底层数字错误码和 HTTP 状态；普通空表是成功结果。显式往返自检的读取/删除仅针对其新建记录，浏览器协议没有新增删除或任意 API 调用能力。
+
+## Share-link resolution / 分享链接解析
+
+The parser accepts /base/{token} and /wiki/{nodeToken}, with an optional single valid table=tbl… value. Copy/view parameters are stripped. With a base-only link, the runtime accepts only config.baseToken and fills config.articleTableId. It neither lists other tables nor selects an arbitrary table. With a wiki link, add this optional adapter method:
+
+```js
+async resolveWikiNode(nodeToken) {
+  // Authenticated read-only lookup using your existing connection.
+  return { nodeToken: verifiedNodeToken, objType: 'bitable', objToken: verifiedBaseToken };
+}
+```
+
+The runtime verifies the active identity, returned node token, Bitable object type, matching configured base and any table= value. The reference adapter implements GET /open-apis/wiki/v2/spaces/get_node?token={nodeToken}; the general request method still cannot relay arbitrary wiki API paths. Return no node titles or other metadata to Chrome. This method is optional for /base/ users and requires appropriate wiki node read permission for /wiki/ users.
+
+runtime 接受 base 和 wiki 分享链接，table 参数可省略；只匹配固定配置目标。Wiki 查询使用已有凭证，由适配器实现可选方法；不扩展普通 API 转发范围，不返回其他节点的标题与元数据。仅使用 base 链接时无需知识库权限。
+
+On health/preferences with tableUrl, success includes `resolvedTable: {url, baseToken, articleTableId, base, source}`. url is the sanitized input URL, base equals the pinned identity base, and source is explicit-link, configured-table or wiki-node. Chrome validates this descriptor before pinning identity; preferences resolve again before persistence. LINK_RESOLVER_UNAVAILABLE identifies a missing adapter method, LINK_NOT_BITABLE a different object type, LINK_RESPONSE_INVALID a malformed result, and TABLE_MISMATCH an unauthorized target. Wiki API failures preserve numeric codes and the wiki.resolve stage. No automatic reconfiguration or migration occurs.
+
+解析结果在 health/preferences 成功响应中返回，并由 Chrome 验证；保存偏好前连接端会再次检查链接。缺少解析能力、非多维表格、响应无效、目标不匹配分别使用上述诊断编号。不会自动重配同步目标。

@@ -1,4 +1,5 @@
 import { cleanDiagnostic, formatDiagnostic } from './diagnostics.js';
+import { parseTableUrl } from './table-url.js';
 import { CONNECTION_BASE_URL } from './connection-config.js';
 import { SafeError, readJsonResponse } from './security.js';
 import { parseConnectionUrl } from './connection-url.js';
@@ -8,7 +9,7 @@ const validIdentity = value => value && /^[A-Za-z0-9._:-]{1,128}$/.test(value.co
 const sameIdentity = (a, b) => a.connectionId === b.connectionId && a.base === b.base;
 
 export function createConnectionClient({ baseUrl = CONNECTION_BASE_URL, storage, fetchImpl } = {}) {
-  return async (action, payload = {}, { accessKey } = {}) => {
+  return async (action, payload = {}, { accessKey, pinIdentity = true } = {}) => {
     if (!actions.has(action)) throw new SafeError('Unsupported connection operation.');
     if (!baseUrl) {
       if (['health', 'sync', 'preferences'].includes(action)) return { ok: true, connected: false, enabled: false };
@@ -19,7 +20,7 @@ export function createConnectionClient({ baseUrl = CONNECTION_BASE_URL, storage,
     const local = storage || chrome.storage.local;
     const stored = await local.get(['connectionAccessKey', 'collectionIdentity', 'connectionBaseUrl']);
     const key = accessKey || stored.connectionAccessKey, identity = stored.collectionIdentity;
-    if (!validAccessKey(key)) throw new SafeError('Enter the connection access key in Settings.');
+    if (!validAccessKey(key)) throw new SafeError(key ? formatDiagnostic({ code: 'KEY_INVALID', stage: 'identity' }) : 'Enter the connection access key in Settings.');
     if (!accessKey && stored.connectionBaseUrl && stored.connectionBaseUrl !== target) throw new SafeError('Connection address changed. Verify it and enter its access key again.');
     const body = JSON.stringify({ ...payload, ...(identity ? { expectedIdentity: identity } : {}) });
     if (new TextEncoder().encode(body).length > 20 * 1024 * 1024) throw new SafeError('Sync request exceeds 20 MiB.');
@@ -29,7 +30,8 @@ export function createConnectionClient({ baseUrl = CONNECTION_BASE_URL, storage,
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body,
         credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(180000) });
     } catch { throw new SafeError('Connection failed or timed out. Check its availability and HTTPS configuration.'); }
-    if ([401, 403].includes(response.status)) throw new SafeError('Connection denied access. Check the key and extension ID.');
+    if (response.status === 401) throw new SafeError(formatDiagnostic({ code: 'KEY_INVALID', stage: 'identity' }));
+    if (response.status === 403) throw new SafeError(formatDiagnostic({ code: 'ORIGIN_DENIED', stage: 'identity' }));
     const result = await readJsonResponse(response, 20 * 1024 * 1024);
     if (!response.ok || result.ok !== true) throw new SafeError(cleanDiagnostic(result.diagnostic) ? formatDiagnostic(result.diagnostic) : 'Connection operation failed. Check its authorization, permissions and private logs.');
     if (result.protocolVersion !== 1 || !validIdentity(result.identity)) throw new SafeError('Unsupported or invalid connection response.');
@@ -45,7 +47,17 @@ export function createConnectionClient({ baseUrl = CONNECTION_BASE_URL, storage,
         throw new SafeError('Invalid table snapshot; local data was preserved.');
       }
     }
-    if (!identity) await local.set({ collectionIdentity: result.identity });
+    if (payload.tableUrl !== undefined) {
+      const link = parseTableUrl(payload.tableUrl), resolved = result.resolvedTable;
+      if (!resolved || resolved.url !== link.url || resolved.base !== result.identity.base ||
+          resolved.base !== `${resolved.baseToken}/${resolved.articleTableId}` ||
+          resolved.source !== (link.kind === 'wiki' ? 'wiki-node' : link.articleTableId ? 'explicit-link' : 'configured-table') ||
+          (link.kind === 'base' && resolved.baseToken !== link.baseToken) ||
+          (link.articleTableId && resolved.articleTableId !== link.articleTableId)) {
+        throw new SafeError(formatDiagnostic({ code: 'LINK_RESPONSE_INVALID', stage: link.kind === 'wiki' ? 'wiki.resolve' : 'fields' }));
+      }
+    }
+    if (!identity && pinIdentity) await local.set({ collectionIdentity: result.identity });
     return result;
   };
 }

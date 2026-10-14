@@ -1,5 +1,14 @@
 import { SafeError } from './security.js';
 export const messages = Object.freeze({
+  LINK_RESOLVER_UNAVAILABLE: 'The connection adapter cannot resolve wiki links. Add its read-only wiki resolver or use a direct /base/ link.',
+  LINK_NOT_BITABLE: 'This wiki node is not a Bitable. Paste a link to a Bitable node.',
+  LINK_RESPONSE_INVALID: 'The table-link resolver returned an invalid or mismatched result.',
+  EMPTY_RESPONSE: 'The provider omitted required list metadata.',
+  REMINDERS_UNAVAILABLE: 'The connection operator must configure the reminder scheduler, chat and message permissions first.',
+  KEY_INVALID: 'The connection access key is missing, invalid or revoked (401).',
+  ORIGIN_DENIED: 'The extension origin is not registered on this connection (403).',
+  PROBE_FAILED: 'Write/read/delete self-test failed. Inspect the private probe journal before retrying.',
+  PROBE_CLEANUP: 'Self-test cleanup is unconfirmed. Inspect the private probe journal and remove only the matching test record.',
   ACCESS_KEY: 'Missing or invalid access.key. Initialize private state and check file ownership and permissions.',
   TABLE_MISMATCH: 'The pasted table differs from the authorized table. Ask the connection operator to configure the intended table; use a separate collection for a different table.',
   AUTH_VERIFY: 'Connection authorization could not be verified.',
@@ -12,10 +21,12 @@ export const messages = Object.freeze({
   LOCK_BUSY: 'State lock is held. Retry; after a crash, stop all owners before removing the lock.',
   OPERATION_FAILED: 'Connection operation failed. Check the failure stage and reference.',
 });
-const stages = new Set(['identity', 'fields', 'records.list', 'records.create', 'records.update', 'messages.send', 'state.load', 'state.save', 'lock', 'health', 'sync', 'read', 'pending', 'resolve', 'preferences', 'daily']);
+const stages = new Set(['identity', 'wiki.resolve', 'fields', 'records.list', 'records.create', 'records.update', 'messages.send', 'state.load', 'state.save', 'lock', 'health', 'sync', 'read', 'pending', 'resolve', 'preferences', 'daily']);
 const fieldNames = new Set(['标题', '链接', '内容', '类别', '阅读状态', '推荐指数', '笔记', '时间']);
 export function cleanDiagnostic(value) {
-  if (!value || !Object.hasOwn(messages, value.code) || !stages.has(value.stage)) return null;
+  if (!value || !Object.hasOwn(messages, value.code) || typeof value.stage !== 'string') return null;
+  const stage = value.stage.replace(/^(health|sync|read|pending|resolve|preferences|daily)\./, '');
+  if (!stages.has(stage)) return null;
   const result = { code: value.code, stage: value.stage };
   if (Number.isSafeInteger(value.providerCode)) result.providerCode = value.providerCode;
   if (Number.isInteger(value.httpStatus) && value.httpStatus >= 100 && value.httpStatus <= 599) result.httpStatus = value.httpStatus;

@@ -1,7 +1,7 @@
 import { SafeError, safeErrorMessage } from './lib/security.js';
-import { getItems, setItems, setSettings, setRead, addItem, deleteItem } from './lib/storage.js';
+import { getItems, setItems, setSettings, setRead, addItem, deleteItem, getConnectionKeyStatus } from './lib/storage.js';
 import { callKnowledge, mergeKnowledge } from './lib/knowledge.js';
-import { connectionStatus, pendingDelivery, resolveDelivery } from './lib/connection.js';
+import { callConnection, connectionStatus, pendingDelivery, resolveDelivery } from './lib/connection.js';
 
 let queue = Promise.resolve();
 function enqueue(work) {
@@ -85,12 +85,17 @@ chrome.action.onClicked.addListener(tab => {
 // overwrite a newer Feishu snapshot while a send is in flight.
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (sender.id !== chrome.runtime.id || sender.frameId !== 0 || sender.url?.split(/[?#]/)[0] !== chrome.runtime.getURL('src/options.html')) return;
-  if (!['SET_READ', 'DELETE_ITEM', 'SAVE_SETTINGS', 'CONNECTION_STATUS', 'SYNC', 'PENDING', 'RESOLVE_PENDING'].includes(message?.type)) return;
+  if (!['SET_READ', 'DELETE_ITEM', 'SAVE_SETTINGS', 'CONNECTION_STATUS', 'SYNC', 'PENDING', 'RESOLVE_PENDING', 'VALIDATE_CONNECTION', 'KEY_STATUS'].includes(message?.type)) return;
   if (!message || typeof message !== 'object' || JSON.stringify(message).length > 8192) { reply({ ok: false, error: 'Invalid request.' }); return; }
   enqueue(async () => {
     if (['SET_READ', 'DELETE_ITEM'].includes(message.type) && (typeof message.id !== 'string' || message.id.length > 512)) throw new SafeError('Invalid item ID.');
+    if (message.type === 'KEY_STATUS') return { ok: true, ...await getConnectionKeyStatus() };
+    if (message.type === 'VALIDATE_CONNECTION') {
+      if (message.accessKey !== undefined && (typeof message.accessKey !== 'string' || message.accessKey.length > 512)) throw new SafeError('Invalid access key.');
+      return { ok: true, ...await callConnection('health', message.tableUrl !== undefined ? { tableUrl: message.tableUrl } : {}, { accessKey: message.accessKey, pinIdentity: false }) };
+    }
     if (message.type === 'SAVE_SETTINGS') return { ok: true, settings: await setSettings(message.settings) };
-    if (message.type === 'CONNECTION_STATUS') return { ok: true, ...await connectionStatus() };
+    if (message.type === 'CONNECTION_STATUS') return { ok: true, ...await callConnection('health', message.tableUrl !== undefined ? { tableUrl: message.tableUrl } : {}) };
     if (message.type === 'SYNC') { await syncReadingLibrary(); return { ok: true }; }
     if (message.type === 'PENDING') return { ok: true, pending: await pendingDelivery() };
     if (message.type === 'RESOLVE_PENDING') {

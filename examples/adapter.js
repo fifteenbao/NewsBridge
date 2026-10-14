@@ -32,6 +32,37 @@ export function createAdapter({ config: input, getCredentials, fetchImpl = fetch
   return {
     capabilities: { tableRead: true, tableWrite: true, messages: true },
     async getIdentity() { return { connectionId: (await authorize()).connectionId }; },
+    async resolveWikiNode(nodeToken) {
+      if (!/^[A-Za-z0-9]{1,128}$/.test(nodeToken || '')) throw new DiagnosticError('LINK_RESPONSE_INVALID', 'wiki.resolve');
+      const { token } = await authorize();
+      const url = new URL('https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node');
+      url.searchParams.set('token', nodeToken);
+      const result = await json(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` } }, 'wiki.resolve');
+      const node = result.data?.node;
+      return { nodeToken: node?.node_token, objToken: node?.obj_token, objType: node?.obj_type };
+    },
+    async probeRecord(fields, created, inspect, cleaned) {
+      const path = `/open-apis/bitable/v1/apps/${config.baseToken}/tables/${config.articleTableId}/records`;
+      validateFeishuOperation(config, 'POST', path, { data: { fields } });
+      if (!/^NewsBridge self-test [a-f0-9-]{36}$/.test(fields.标题 || '') || fields.阅读状态 !== '已读') throw new DiagnosticError('PROBE_FAILED', 'records.create');
+      const { token } = await authorize();
+      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const result = await json('https://open.feishu.cn' + path, { method: 'POST', headers, body: JSON.stringify({ fields }) }, 'records.create');
+      const id = result.data?.record?.record_id;
+      if (!/^rec[A-Za-z0-9]{1,128}$/.test(id || '')) throw new DiagnosticError('PROBE_CLEANUP', 'records.create');
+      let failure;
+      try {
+        await created(id);
+        const read = await json(`https://open.feishu.cn${path}/${id}`, { method: 'GET', headers }, 'records.list');
+        await inspect(read.data?.record);
+      } catch (error) { failure = error; }
+      try {
+        const removed = await json(`https://open.feishu.cn${path}/${id}`, { method: 'DELETE', headers }, 'records.update');
+        if (removed.data?.deleted !== true || removed.data?.record_id !== id) throw new Error();
+      } catch (error) { throw new DiagnosticError('PROBE_CLEANUP', 'records.update', error?.diagnostic || {}); }
+      await cleaned();
+      if (failure) throw failure;
+    },
     async request(method, path, options = {}) {
       validateFeishuOperation(config, method, path, options);
       // Credential acquisition and identity check use the same snapshot per request.

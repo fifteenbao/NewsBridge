@@ -43,11 +43,11 @@ export async function deleteItem(id) {
 }
 export async function getSettings() {
   const { settings = {} } = await chrome.storage.local.get(SETTINGS_KEY);
-  return { language: settings.language === 'zh' ? 'zh' : 'en', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}) };
+  return { language: settings.language === 'zh' ? 'zh' : 'en', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}), ...(typeof settings.remindersEnabled === 'boolean' ? { remindersEnabled: settings.remindersEnabled } : {}) };
 }
 export function validateSettings(settings) {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new SafeError('Invalid settings.');
-  return { language: settings.language === 'zh' ? 'zh' : 'en', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}) };
+  return { language: settings.language === 'zh' ? 'zh' : 'en', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}), ...(typeof settings.remindersEnabled === 'boolean' ? { remindersEnabled: settings.remindersEnabled } : {}) };
 }
 export async function setSettings(settings) {
   const next = validateSettings(settings);
@@ -55,8 +55,14 @@ export async function setSettings(settings) {
   if (settings.connectionAccessKey) {
     if (!validAccessKey(settings.connectionAccessKey)) throw new SafeError('Invalid connection access key.');
   }
-  await callConnection('preferences', { language: next.language, ...(next.tableUrl ? { table: parseTableUrl(next.tableUrl).base } : {}) }, { accessKey: settings.connectionAccessKey });
-  if (settings.connectionAccessKey) await chrome.storage.local.set({ connectionAccessKey: settings.connectionAccessKey, connectionBaseUrl: CONNECTION_BASE_URL });
+  await callConnection('preferences', { language: next.language, ...(next.tableUrl ? { tableUrl: next.tableUrl, ...(parseTableUrl(next.tableUrl).base ? { table: parseTableUrl(next.tableUrl).base } : {}) } : {}), ...(next.remindersEnabled !== undefined ? { remindersEnabled: next.remindersEnabled } : {}) }, { accessKey: settings.connectionAccessKey });
+  if (settings.connectionAccessKey) await chrome.storage.local.set({ connectionAccessKey: settings.connectionAccessKey, connectionBaseUrl: CONNECTION_BASE_URL, connectionKeySavedAt: new Date().toISOString() });
   await chrome.storage.local.set({ [SETTINGS_KEY]: next });
   return next;
+}
+
+export async function getConnectionKeyStatus() {
+  const data = await chrome.storage.local.get(['connectionAccessKey', 'connectionKeySavedAt', 'connectionBaseUrl']);
+  return { saved: validAccessKey(data.connectionAccessKey), savedAt: typeof data.connectionKeySavedAt === 'string' && Number.isFinite(Date.parse(data.connectionKeySavedAt)) ? data.connectionKeySavedAt : null,
+    matchesEndpoint: data.connectionBaseUrl === CONNECTION_BASE_URL };
 }
