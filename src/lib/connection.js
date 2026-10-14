@@ -5,11 +5,11 @@ import { SafeError, readJsonResponse } from './security.js';
 import { parseConnectionUrl } from './connection-url.js';
 const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences']);
 export const validAccessKey = value => typeof value === 'string' && /^[A-Za-z0-9_-]{32,512}$/.test(value);
-const validIdentity = value => value && /^[A-Za-z0-9._:-]{1,128}$/.test(value.connectionId || '') && /^[A-Za-z0-9]+\/[A-Za-z0-9]+$/.test(value.base || '');
+const validIdentity = value => value && /^[A-Za-z0-9.@_:-]{1,254}$/.test(value.connectionId || '') && /^[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+$/.test(value.base || '');
 const sameIdentity = (a, b) => a.connectionId === b.connectionId && a.base === b.base;
 
 export function createConnectionClient({ baseUrl = CONNECTION_BASE_URL, storage, fetchImpl } = {}) {
-  return async (action, payload = {}, { accessKey, pinIdentity = true } = {}) => {
+  return async (action, payload = {}, { accessKey, pinIdentity = true, provider } = {}) => {
     if (!actions.has(action)) throw new SafeError('Unsupported connection operation.');
     if (!baseUrl) {
       if (['health', 'sync', 'preferences'].includes(action)) return { ok: true, connected: false, enabled: false };
@@ -18,11 +18,13 @@ export function createConnectionClient({ baseUrl = CONNECTION_BASE_URL, storage,
     }
     const target = parseConnectionUrl(baseUrl).baseUrl;
     const local = storage || chrome.storage.local;
-    const stored = await local.get(['connectionAccessKey', 'collectionIdentity', 'connectionBaseUrl']);
+    const stored = await local.get(['connectionAccessKey', 'collectionIdentity', 'connectionBaseUrl', 'connectionProvider', 'collectionArchives']);
     const key = accessKey || stored.connectionAccessKey, identity = stored.collectionIdentity;
     if (!validAccessKey(key)) throw new SafeError(key ? formatDiagnostic({ code: 'KEY_INVALID', stage: 'identity' }) : 'Enter the connection access key in Settings.');
     if (!accessKey && stored.connectionBaseUrl && stored.connectionBaseUrl !== target) throw new SafeError('Connection address changed. Verify it and enter its access key again.');
-    const body = JSON.stringify({ ...payload, ...(identity ? { expectedIdentity: identity } : {}) });
+    const selectedProvider = provider || stored.connectionProvider || 'feishu';
+    if (!['feishu', 'google'].includes(selectedProvider)) throw new SafeError('Invalid storage provider.');
+    const body = JSON.stringify({ ...payload, provider: selectedProvider, ...(identity ? { expectedIdentity: identity } : {}) });
     if (new TextEncoder().encode(body).length > 20 * 1024 * 1024) throw new SafeError('Sync request exceeds 20 MiB.');
     let response;
     try {
@@ -35,7 +37,8 @@ export function createConnectionClient({ baseUrl = CONNECTION_BASE_URL, storage,
     const result = await readJsonResponse(response, 20 * 1024 * 1024);
     if (!response.ok || result.ok !== true) throw new SafeError(cleanDiagnostic(result.diagnostic) ? formatDiagnostic(result.diagnostic) : 'Connection operation failed. Check its authorization, permissions and private logs.');
     if (result.protocolVersion !== 1 || !validIdentity(result.identity)) throw new SafeError('Unsupported or invalid connection response.');
-    if (identity && !sameIdentity(identity, result.identity)) throw new SafeError('Connection account or table differs from this collection.');
+    if (identity && !sameIdentity(identity, result.identity)) throw new SafeError('Connection account or table differs from this collection. Disconnect in Settings before reassociating.');
+    if (action === 'health' && (result.configuration?.storageProvider || 'feishu') !== selectedProvider) throw new SafeError('The connection does not match the selected storage provider.');
     if (action === 'health' && (result.connected !== true || result.capabilities?.tableRead !== true || result.capabilities?.tableWrite !== true)) {
       throw new SafeError('This connection does not support table reading and writing.');
     }
@@ -57,7 +60,11 @@ export function createConnectionClient({ baseUrl = CONNECTION_BASE_URL, storage,
         throw new SafeError(formatDiagnostic({ code: 'LINK_RESPONSE_INVALID', stage: link.kind === 'wiki' ? 'wiki.resolve' : 'fields' }));
       }
     }
-    if (!identity && pinIdentity) await local.set({ collectionIdentity: result.identity });
+    if (!identity && pinIdentity) {
+      const archived = stored.collectionArchives?.[JSON.stringify(result.identity)];
+      const current = (await local.get('items')).items || [];
+      await local.set({ collectionIdentity: result.identity, ...(Array.isArray(archived) ? { items: [...archived, ...current.filter(item => !archived.some(old => old.id === item.id))] } : {}) });
+    }
     return result;
   };
 }

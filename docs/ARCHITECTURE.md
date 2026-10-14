@@ -1,8 +1,8 @@
 # Architecture / 架构
 
-NewsBridge has three boundaries: browser collection, a portable connection contract, and the user's existing authenticated Feishu environment.
+NewsBridge has three boundaries: browser collection, a portable connection contract, and the user's existing authenticated Feishu / Google environment.
 
-NewsBridge 分为浏览器收藏、可移植连接接口，以及用户已有的飞书授权环境。
+NewsBridge 分为浏览器收藏、可移植连接接口，以及用户已有的飞书 / Google 授权环境。
 
 ```text
 Chrome: capture + local list + status controls
@@ -11,7 +11,8 @@ Chrome: capture + local list + status controls
 Existing tool/router → connector.dispatch(action, payload)
     │ verified adapter identity + fixed table/field restrictions
     ▼
-Existing Feishu access → Bitable and optional chat messages
+Existing provider access → Feishu Bitable / Google Sheets
+Optional Feishu messaging → configured chat
 
 Existing scheduler → connector.daily()
 Both dispatch and daily share durable state and an exclusive lock.
@@ -26,11 +27,14 @@ No provider, executable, service manager, OS path or personal domain is required
 - `src/lib/bitable.js`: field validation, pagination, safe record creation and normalized snapshots.
 - `src/lib/notifications.js`: unread selection, persistent pending requests and receipts, same-day completion.
 - `scripts/build-extension.mjs`: allowlisted extension assets and ZIP generation, with no OS packaging utility.
-- `examples/adapter.js`: binding template for an existing authorized environment.
+- `examples/adapter.js`: runnable Feishu custom-app adapter.
+- `examples/google-adapter.js`: Sheets API compatibility adapter, service-account OAuth, eight-column schema and metadata-based row identity.
+- `examples/host.js`: fixed profile routing and shared persistence.
+- `examples/serve.mjs`: optional, explicitly started loopback listener behind an existing HTTPS proxy.
 
-Feishu owns existing notes and status. The browser uploads captures, not arbitrary API commands. A local linked status changes only after a successful remote update. Identity includes the verified connection and table, so switching either cannot silently transfer a collection.
+The selected table owns existing notes and status. The browser uploads captures, not arbitrary API commands. A local linked status changes only after a successful remote update. Identity includes the verified connection and table, so switching either cannot silently transfer a collection.
 
-飞书保有已有记录的笔记和状态。浏览器上传收藏而非任意 API 指令；关联状态在远端写入成功后更新。身份同时限定连接和表格，避免静默转移资料库。
+所选表格保有已有记录的笔记和状态。浏览器上传收藏而非任意 API 指令；关联状态在远端写入成功后更新。身份同时限定连接和表格，避免静默转移资料库。
 
 ## Delivery recovery
 
@@ -39,3 +43,12 @@ The host supplies private durable storage and locking. A scheduled send first pe
 宿主提供私有持久化存储和锁。先保存请求再发送，送达记录与阅读状态分开。不确定结果保留原请求；超过窗口或内容/状态改变后先核实会话，再确认结果，不清空记录强制重发。
 
 See [the contract](CONNECTION.md) for request/response details and [security boundaries](../SECURITY.md) for host responsibilities.
+
+
+Settings can disconnect and re-associate with a configured provider. Local linked data is archived by verified identity and restored only for that identity; no remote deletes or server authorization changes occur. The Google adapter translates the current restricted Feishu-shaped internal operations rather than making the entire data core storage-agnostic. General provider support still requires an adapter implementing the documented normalization and security restrictions.
+
+设置页可取消关联并重新连接已配置类型，本机关联数据按验证身份归档与恢复，不删除远端内容或改变服务端授权。Google 适配器翻译现有受限的内部飞书形态操作；数据核心尚未变成通用任意存储接口，其他平台仍须实现规定的归一化与权限限制。
+
+Daily jobs poll using persisted custom time/timezone, language and enable/disable preferences (10:00 Asia/Shanghai default). Both providers can use optional Feishu chat delivery with a separately verified messaging app. See [self-hosting](SELF-HOSTING.md) / [中文自建部署](SELF-HOSTING.zh-CN.md).
+
+每日任务按持久化的自定义时间、时区、语言与开关轮询，默认 10:00 Asia/Shanghai。两种表格均可通过另行验证的飞书应用发送可选会话提醒。

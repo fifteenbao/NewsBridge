@@ -190,7 +190,8 @@ test('reference CLI supports explicit env file and state audit; private files re
   await writeFile(envFile, 'NEWSBRIDGE_TEST_VALUE=loaded\n', { mode: 0o600 });
   const cli = new URL('../examples/run.mjs', import.meta.url).pathname;
   const init = await exec(process.execPath, [cli, 'init', file, '--env', envFile]);
-  assert.equal(JSON.parse(init.stdout).ok, true);
+  assert.equal(JSON.parse(init.stdout.split('\n')[0]).ok, true);
+  assert.match(init.stdout, /check .*--write/);
   const audit = await exec(process.execPath, [cli, 'audit', file]); assert.equal(JSON.parse(audit.stdout).hardLinks, 1);
   const state = await createFileState({ stateDir: join(dir, 'state') });
   await chmod(join(dir, 'state/state.json'), 0o644); await assert.rejects(state.audit());

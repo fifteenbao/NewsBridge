@@ -9,6 +9,8 @@
     "chatId": "",
     "remindersEnabled": false,
     "timeZone": "Asia/Shanghai",
-    "language": "en"
+    "language": "en",
+    "storageProvider": "feishu",
+    "reminderTime": "10:00"
   }
 }

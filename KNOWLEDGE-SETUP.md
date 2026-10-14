@@ -19,7 +19,7 @@ Import [Excel](templates/Daily-Briefing-飞书阅读模板.xlsx) or [CSV](templa
 
 模板提供 10 条初始素材，不是自动新闻订阅。导入后检查字段类型，个人笔记留给用户填写；时间是收藏日期。
 
-Add categories **Builder Insights**, **Tech Radar**, **Project Watch**, **Try This**, and **待分类**. Add reading states **待阅读、阅读中、已读、已沉淀、归档**. Only `待阅读` and `阅读中` are unread; unknown/empty states are excluded from reminders. Safe links are also required. New Chrome captures start as `待分类`; the extension does not summarize article bodies or assign scores.
+Add categories **Builder Insights**, **Tech Radar**, **Project Watch**, **Try This**, and **待分类**. Add reading states **待阅读、阅读中、已读、跳过、已沉淀、归档**. Only `待阅读` and `阅读中` are unread; unknown/empty states are excluded from reminders. Safe links are also required. New Chrome captures start as `待分类`; the extension does not summarize article bodies or assign scores.
 
 添加上述类别和状态；只有“待阅读”和“阅读中”会参与提醒，空白或未知状态不推送。新收藏默认为“待分类”，正文摘要与评分由用户整理。
 
@@ -30,3 +30,7 @@ Create an unread view filtered to the first two states and group by category. Cr
 Feishu owns existing content, notes, links, and status. Changes are read at the next sync. Chrome read/unread toggles update only `阅读状态`, then update the cache after success. Delete linked items in Feishu; a later sync marks the local link as deleted without recreating the record. Delivery receipts remain separate from reading progress.
 
 已有记录以飞书为准。扩展只在状态更新成功后修改本地状态，不覆盖笔记和内容；关联记录在飞书中删除，下次同步标记本地关联已删除，不会重新创建记录。发送提醒不改变阅读状态。
+
+Skip / 跳过 preserves the record but removes it from the unread extension view and daily reminder selection. Change it back to 待阅读 in Feishu and sync to restore it. A new eight-field table can be created with the optional [one-command setup](SETUP.md#create-the-eight-field-table--一键创建八字段表).
+
+跳过会保留记录，但从插件未读列表及提醒中排除；改回待阅读并同步可恢复。新用户也可用 SETUP 中的一键脚本建表。

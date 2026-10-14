@@ -1,5 +1,5 @@
 import { SafeError, safeErrorMessage } from './lib/security.js';
-import { getItems, setItems, setSettings, setRead, addItem, deleteItem, getConnectionKeyStatus } from './lib/storage.js';
+import { getItems, setItems, setSettings, setRead, setReadingStatus, addItem, deleteItem, getConnectionKeyStatus, disconnectCollection } from './lib/storage.js';
 import { callKnowledge, mergeKnowledge } from './lib/knowledge.js';
 import { callConnection, connectionStatus, pendingDelivery, resolveDelivery } from './lib/connection.js';
 
@@ -23,7 +23,7 @@ async function syncReadingLibrary() {
     if (error) await reportError(new SafeError(error));
     else {
       await chrome.action.setBadgeText({ text: '' });
-      await chrome.action.setTitle({ title: 'Save this page to NewsBridge' });
+      await chrome.action.setTitle({ title: 'NewsBridge — Home, Collection and Settings' });
     }
     return result;
   } catch (error) {
@@ -45,6 +45,7 @@ chrome.runtime.onInstalled.addListener((details = {}) => {
   if (details.reason === 'install') chrome.tabs.create({ url: chrome.runtime.getURL('src/options.html') + '#settings' });
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({ id: 'open-list', title: 'Reading list', contexts: ['action'] });
+    chrome.contextMenus.create({ id: 'open-home', title: 'Home', contexts: ['action'] });
     chrome.contextMenus.create({ id: 'open-settings', title: 'Settings', contexts: ['action'] });
     chrome.contextMenus.create({ id: 'sync-knowledge', title: 'Sync reading library', contexts: ['action'] });
   });
@@ -53,7 +54,7 @@ chrome.runtime.onInstalled.addListener((details = {}) => {
 chrome.contextMenus.onClicked.addListener(info => {
   if (info.menuItemId === 'sync-knowledge') enqueue(syncReadingLibrary).catch(() => console.warn('NewsBridge operation failed; check Settings.'));
   else chrome.tabs.create({ url: chrome.runtime.getURL('src/options.html') +
-    (info.menuItemId === 'open-settings' ? '#settings' : '#reading-list') });
+    (info.menuItemId === 'open-settings' ? '#settings' : info.menuItemId === 'open-home' ? '' : '#reading-list') });
 });
 chrome.alarms.onAlarm.addListener(alarm => {
   if (alarm.name !== 'knowledge-sync') return;
@@ -65,37 +66,54 @@ chrome.alarms.onAlarm.addListener(alarm => {
 chrome.runtime.onStartup.addListener(() => {
   enqueue(async () => { await initializeAlarms(); await syncReadingLibrary(); }).catch(() => console.warn('NewsBridge operation failed; check Settings.'));
 });
+async function capturePage(tab) {
+  if (!/^https?:\/\//i.test(tab?.url || '')) {
+    const error = new SafeError('This page cannot be saved. Open an HTTP(S) article or video page and try again.');
+    await reportError(error); throw error;
+  }
+  try { await addItem({ url: tab.url, title: tab.title }); }
+  catch (error) { await reportError(error); throw error; }
+  await showCaptureFeedback('Saved locally', 'Checking reading sync…');
+  try {
+    const result = await syncReadingLibrary();
+    const error = result.notifications?.error || null;
+    await showCaptureFeedback('Saved to NewsBridge', error || (result.enabled ? 'Synced with Feishu Bitable.' : 'Saved locally. Configure a connection to enable Feishu sync.'), !!error);
+    return { ok: true, saved: true, synced: result.enabled === true, error };
+  } catch (error) {
+    await showCaptureFeedback('Saved locally — sync failed', safeErrorMessage(error), true);
+    return { ok: true, saved: true, synced: false, error: safeErrorMessage(error) };
+  }
+}
+// Fallback for builds without a popup; the shipped action opens popup.html.
 chrome.action.onClicked.addListener(tab => {
-  enqueue(async () => {
-    if (!/^https?:\/\//i.test(tab?.url || '')) {
-      await reportError(new SafeError('This page cannot be saved. Open an HTTP(S) article or video page and try again.'));
-      return;
-    }
-    try { await addItem({ url: tab.url, title: tab.title }); } catch (error) { await reportError(error); return; }
-    await showCaptureFeedback('Saved locally', 'Checking reading sync…');
-    try {
-      const result = await syncReadingLibrary();
-      const note = result.notifications?.error || (result.enabled ? 'Synced with Feishu Bitable.' :
-        'Saved locally. Configure a connection to enable Feishu sync.');
-      await showCaptureFeedback('Saved to NewsBridge', note, !!result.notifications?.error);
-    } catch (error) { await showCaptureFeedback('Saved locally — sync failed', safeErrorMessage(error), true); }
-  }).catch(() => console.warn('NewsBridge operation failed; check Settings.'));
+  enqueue(() => capturePage(tab)).catch(error => { if (!(error instanceof SafeError)) console.warn('NewsBridge operation failed; check Settings.'); });
 });
 // Serialize dashboard mutations with background sync, so local writes do not
 // overwrite a newer Feishu snapshot while a send is in flight.
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
-  if (sender.id !== chrome.runtime.id || sender.frameId !== 0 || sender.url?.split(/[?#]/)[0] !== chrome.runtime.getURL('src/options.html')) return;
-  if (!['SET_READ', 'DELETE_ITEM', 'SAVE_SETTINGS', 'CONNECTION_STATUS', 'SYNC', 'PENDING', 'RESOLVE_PENDING', 'VALIDATE_CONNECTION', 'KEY_STATUS'].includes(message?.type)) return;
+  const source = sender.url?.split(/[?#]/)[0];
+  const fromOptions = source === chrome.runtime.getURL('src/options.html');
+  const fromPopup = source === chrome.runtime.getURL('src/popup.html');
+  if (sender.id !== chrome.runtime.id || sender.frameId !== undefined && sender.frameId !== 0 || !fromOptions && !fromPopup) return;
+  if (fromPopup && message?.type !== 'CAPTURE_PAGE') return;
+  if (fromOptions && message?.type === 'CAPTURE_PAGE') return;
+  if (!['CAPTURE_PAGE', 'SET_STATUS', 'SET_READ', 'DELETE_ITEM', 'SAVE_SETTINGS', 'CONNECTION_STATUS', 'SYNC', 'PENDING', 'RESOLVE_PENDING', 'VALIDATE_CONNECTION', 'KEY_STATUS', 'DISCONNECT'].includes(message?.type)) return;
   if (!message || typeof message !== 'object' || JSON.stringify(message).length > 8192) { reply({ ok: false, error: 'Invalid request.' }); return; }
   enqueue(async () => {
-    if (['SET_READ', 'DELETE_ITEM'].includes(message.type) && (typeof message.id !== 'string' || message.id.length > 512)) throw new SafeError('Invalid item ID.');
+    if (message.type === 'CAPTURE_PAGE') {
+      if (Object.keys(message).some(key => key !== 'type')) throw new SafeError('Invalid capture request.');
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      return capturePage(tab);
+    }
+    if (['SET_READ', 'SET_STATUS', 'DELETE_ITEM'].includes(message.type) && (typeof message.id !== 'string' || message.id.length > 512)) throw new SafeError('Invalid item ID.');
+    if (message.type === 'DISCONNECT') return disconnectCollection();
     if (message.type === 'KEY_STATUS') return { ok: true, ...await getConnectionKeyStatus() };
     if (message.type === 'VALIDATE_CONNECTION') {
       if (message.accessKey !== undefined && (typeof message.accessKey !== 'string' || message.accessKey.length > 512)) throw new SafeError('Invalid access key.');
-      return { ok: true, ...await callConnection('health', message.tableUrl !== undefined ? { tableUrl: message.tableUrl } : {}, { accessKey: message.accessKey, pinIdentity: false }) };
+      return { ok: true, ...await callConnection('health', message.tableUrl !== undefined ? { tableUrl: message.tableUrl } : {}, { accessKey: message.accessKey, pinIdentity: false, provider: message.provider }) };
     }
     if (message.type === 'SAVE_SETTINGS') return { ok: true, settings: await setSettings(message.settings) };
-    if (message.type === 'CONNECTION_STATUS') return { ok: true, ...await callConnection('health', message.tableUrl !== undefined ? { tableUrl: message.tableUrl } : {}) };
+    if (message.type === 'CONNECTION_STATUS') return { ok: true, ...await callConnection('health', message.tableUrl !== undefined ? { tableUrl: message.tableUrl } : {}, { provider: message.provider }) };
     if (message.type === 'SYNC') { await syncReadingLibrary(); return { ok: true }; }
     if (message.type === 'PENDING') return { ok: true, pending: await pendingDelivery() };
     if (message.type === 'RESOLVE_PENDING') {
@@ -103,7 +121,9 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       await chrome.storage.local.remove('knowledgeSync');
       return { ok: true };
     }
-    if (message.type === 'SET_READ') {
+    if (message.type === 'SET_STATUS') {
+      await setReadingStatus(message.id, message.status);
+    } else if (message.type === 'SET_READ') {
       if (typeof message.read !== 'boolean') throw new SafeError('Invalid reading status.');
       await setRead(message.id, message.read);
     } else {

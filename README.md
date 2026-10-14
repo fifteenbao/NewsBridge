@@ -4,9 +4,9 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-**Save content worth your time. Organize it in Feishu.**
+**Save content worth your time. Organize it in Feishu or Google Sheets.**
 
-NewsBridge is an open-source Chrome extension for saving articles, videos, and other content that takes time to understand. Use Feishu Bitable to organize your collection, reading status, categories, and notes.
+NewsBridge is an open-source Chrome extension for saving articles, videos, and other content that takes time to understand. Use Feishu Bitable or Google Sheets to organize your collection, reading status, categories, and notes.
 
 Save → organize → read or watch → take notes → review related material.
 
@@ -16,10 +16,12 @@ Use **Google Chrome 106 or later**. NewsBridge is installed by loading an unpack
 
 ### Connection settings
 
-Settings opens on first install. Later, **right-click the NewsBridge icon → Settings**. Choose **English / 简体中文** for the interface; Feishu reminder language is set separately.
+Choose **Feishu Bitable / Google Sheets**. The service must configure the chosen provider first; see [self-hosting (Feishu / Google)](docs/SELF-HOSTING.md). **Disconnect collection** archives the current linked library and clears local credentials so another account/table/provider can be associated. Reconnecting the same identity restores its archive. Remote data and server jobs remain; pause reminders before disconnecting if desired.
+
+Settings opens on first install, and is the default view until the connection is configured. Later, **right-click the NewsBridge icon → Settings**. Choose **English / 简体中文** for the interface; Feishu reminder language is set separately.
 
 - **Connection key:** get it from your connection operator. For the reference implementation, run initialization and read `stateDir/access.key` (the example uses `private/state/access.key`). Acquisition steps are also shown on the page.
-- **Table link:** paste a `/base/…` or `/wiki/…` share link. Direct links with `table=tbl…` fill both IDs immediately. Without `table=`, use the verified connection’s configured table in the same base; wiki links resolve through the connection during the check. **Check connection** verifies the target and fields; **Save settings** stores the key and preferences.
+- **Table link:** paste a Google Sheets link (Spreadsheet ID + optional gid), or a Feishu `/base/…` or `/wiki/…` share link. Direct links with `table=tbl…` fill both IDs immediately. Without `table=`, use the verified connection’s configured table in the same base; wiki links resolve through the connection during the check. **Check connection** verifies the target and fields; **Save settings** stores the key and preferences.
 - **Reminder conversation ID:** returned by the connection service, cannot be derived from a table link, and is needed only for daily reminders. Table sync works without it.
 
 The connected build and host authorization are required for sync; offline builds save locally. A parsed link grants no access and cannot silently switch an existing collection to another table. See [startup order and runnable reference](SETUP.md#runnable-reference-and-startup-order--可运行参考与启动顺序).
@@ -57,7 +59,7 @@ For the extension package, the selected directory should look like this:
 
 ### Try your first capture
 
-Open an ordinary `https://` article or video page and click the NewsBridge icon. A green `✓` on the icon confirms the save; clicking saves directly without opening a popup. A `!` indicates an unsupported page or a capture/sync error; hover over the icon for details. A sync error does not discard a successful local capture. Right-click the icon and choose **Reading list** to find the saved title and link. Chrome internal pages such as `chrome://extensions` cannot be captured.
+Open an ordinary HTTPS article or video, click the NewsBridge icon, then choose **Save this page**. A green ✓ confirms capture; a ! indicates an error. The menu also opens **Home / Collection / Settings**. Without a configured connection the default view opens Settings; the header offers navigation and language switching. Collection shows unread items only. Choose **Read** or **Skip** to clear an item from this list; skipping preserves the record and excludes daily reminders. Linked items can be restored by changing their Feishu state to 待阅读 and syncing. Chrome internal pages cannot be captured.
 
 The default package works locally with **no host permissions, connection key, or background service**. Feishu synchronization and daily reminders need a separate connection setup; follow [Setup](SETUP.md) or give your agent the [agent setup instructions](docs/AGENT-SETUP.md). Saving a video captures its page title and link, not its video file or transcript.
 
@@ -69,30 +71,31 @@ With Node.js 22+ and npm installed, open a terminal in the project root containi
 npm run build
 ```
 
-This creates the loadable directory `dist/newsbridge/`, archive `dist/newsbridge.zip`, and a versioned copy such as `dist/newsbridge-V0.2.0.zip`. No `npm install` is required. Node.js is needed only for packaging and development, not for daily extension use.
+This creates the loadable directory `dist/newsbridge/`, archive `dist/newsbridge.zip`, and a versioned copy such as `dist/newsbridge-V0.3.0.zip`. No `npm install` is required. Node.js is needed only for packaging and development, not for daily extension use.
 
 ### Installation help
 
 - **“Manifest file is missing or unreadable”:** check that you unzipped the download and selected the directory directly containing `manifest.json`, not its parent.
 - **The toolbar icon is missing:** open Chrome's Extensions menu and pin NewsBridge.
 - **Saved items do not appear in Feishu:** local installation does not enable synchronization automatically; complete the connection setup linked above.
-- **Updating the extension:** replace the files in the same installation folder, then click **Reload** on NewsBridge's card at `chrome://extensions`. Keep the same folder and Chrome profile; removing the extension can erase its local collection.
+- **Updating the extension:** replace the files in the same installation folder, then click **Reload** on NewsBridge's card at `chrome://extensions`. Keep the same folder and Chrome profile; moving an unpacked folder may change its ID and require updating the host extensionId allowlist to prevent 403 ORIGIN_DENIED; removing the extension can erase its local collection.
 
-## Connect Feishu with your existing tools
+## Connect Feishu / Google with your existing service
 
-Feishu sync is optional. NewsBridge defines a connection contract; it does not require a particular command-line tool, cloud provider, server OS, or agent product.
+Table sync is optional. NewsBridge defines a connection contract; it does not require a particular command-line tool, cloud provider, server OS, or agent product.
 
-An agent can inspect your existing environment, implement the contract using an authorized Feishu connection, and generate a private extension build for its HTTPS base URL, including an optional application path. A tool that can send chat messages is not necessarily able to read/write Bitable: these capabilities must be verified separately.
+An agent can inspect your existing environment, implement the contract using an authorized table connection, and generate a private extension build for its HTTPS base URL, including an optional application path. A tool that can send chat messages is not necessarily able to read/write Bitable: these capabilities must be verified separately.
 
+- [Self-hosting](docs/SELF-HOSTING.md): Feishu / Google credentials, HTTPS service, profile switching and custom reminders.
 - [Setup](SETUP.md): installation and environment checks.
 - [Connection contract](docs/CONNECTION.md): adapter operations, authentication and scheduling.
 - [Agent setup instructions](docs/AGENT-SETUP.md): what an agent may configure and how to verify it.
 
-The current browser transport is an authenticated HTTPS interface. Existing tools must expose that interface, directly or through an adapter. The repository includes a portable connection module and a runnable Feishu custom-app adapter, not preconfigured integrations with third-party products. No new hosting is required when an existing environment can provide the interface.
+The current browser transport is an authenticated HTTPS interface. Existing tools must expose that interface, directly or through an adapter. The repository includes a connection module, a runnable Feishu custom-app adapter and a Google Sheets service-account adapter, not preconfigured integrations with third-party products. No new hosting is required when an existing environment can provide the interface.
 
 ## Reading table
 
-Keep these exact field names; the English column explains them.
+For Google, use the explicit prepare command in the [self-hosting guide](docs/SELF-HOSTING.md). For Feishu, use the optional [eight-field creation script](SETUP.md#create-the-eight-field-table--一键创建八字段表), or configure the table manually. Keep these exact field names; the English column explains them.
 
 | Feishu field | Meaning | Type |
 | --- | --- | --- |
@@ -111,9 +114,9 @@ New captures save a title and link and start uncategorized. Existing notes, cont
 
 ## Optional daily reminders
 
-Your existing scheduler can trigger the connection module at **10:00 Asia/Shanghai** (timezone configurable). Enable reminders only after configuring a conversation and verifying message permissions, durable receipts, and shared locking.
+Your existing scheduler can poll the connection module every minute/few minutes. Settings controls daily time, timezone, language and enable/disable; the default is **10:00 Asia/Shanghai**. Enable reminders only after configuring a conversation and verifying message permissions, durable receipts, and shared locking.
 
-It rereads Bitable before sending, excludes read or deleted material, and sends up to 20 linked items per message. There is no five-item threshold. Sending does not mark content read. A completed day is not repeated; later captures wait until tomorrow, and still-unread items can recur the next day. A delayed check catches up only the current day after 10:00.
+It rereads the connected table before sending, excludes read, skipped or deleted material, and sends up to 20 linked items per message. There is no five-item threshold. Sending does not mark content read. A completed day is not repeated; later captures wait until tomorrow, and still-unread items can recur the next day. A delayed check catches up only the current day after the configured time.
 
 The Settings switch pauses/resumes reminders through a saved server preference once the host scheduler is configured. Chrome never sends scheduled reminders itself. Delivery requires the chosen scheduler and connection to remain available. Uncertain delivery pauses when its retry window expires or its content/status changes; check the conversation before resolving it in Settings.
 

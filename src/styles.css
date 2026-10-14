@@ -584,7 +584,7 @@ button:disabled { cursor: default; opacity: .55; }
 @media (prefers-reduced-motion: reduce) { .item { animation: none; } }
 
 /* Connection controls keep long table IDs readable. */
-.field-control input[type="text"], .field-control input[type="url"], .field-control input[type="password"] { width: 100%; min-width: 0; font: inherit; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.field-control input[type="text"], .field-control input[type="url"], .field-control input[type="password"], .field-control input[type="time"] { width: 100%; min-width: 0; font: inherit; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
 [hidden] { display: none !important; }
 
 /* Prevent localized hints and diagnostic strings from widening the form. */
@@ -601,3 +601,19 @@ button:disabled { cursor: default; opacity: .55; }
   .field-control { flex-basis: auto; width: 100%; }
   .field-control p { max-width: none; }
 }
+
+/* Header navigation and distinct views share the existing visual theme. */
+.options-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 28px; }
+.options-head .brand { flex: 1 0 100%; }
+.options-head .dash-nav { margin: 0; flex-wrap: wrap; }
+.header-language { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.options-head > .field-hint { flex: 1 0 100%; max-width: none; }
+.dash-nav a[aria-current="page"] { color: var(--green-deep); background: var(--green-tint); }
+#home, #reading-list, #settings { margin-top: 0; }
+.status-select { flex: 0 0 auto; width: 95px; font-size: 12px; }
+body.popup { width: 340px; padding: 20px; }
+.popup > .brand { margin-bottom: 12px; }
+.popup .card-note { font-size: 13px; line-height: 1.5; margin: 12px 0; overflow-wrap: anywhere; }
+.popup-nav { display: flex; gap: 8px; margin-top: 14px; }
+.popup-nav button { flex: 1; padding: 10px 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); }
+.popup-nav button:hover { background: var(--green-tint); }

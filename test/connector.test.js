@@ -130,3 +130,13 @@ test('base-path connection reaches only its mounted routes and refuses key reuse
   const changedPath = createConnectionClient({ baseUrl: origin + '/another/', storage: area(local), fetchImpl: () => assert.fail('key must not cross base paths') });
   await assert.rejects(changedPath('health'), /address changed/);
 });
+
+test('saved custom reminder time governs sends and survives connector restart', async () => {
+  const f = fixture();
+  await f.runtime.dispatch('preferences', { language: 'en', reminderTime: '11:35', timeZone: 'Asia/Shanghai' });
+  f.setTime(Date.UTC(2026, 9, 13, 3, 34)); assert.equal((await f.create().daily()).skipped, true);
+  f.setTime(Date.UTC(2026, 9, 13, 3, 35)); await f.create().daily(); assert.equal(f.sends.length, 1);
+  await f.runtime.dispatch('preferences', { language: 'en', reminderTime: '09:00' });
+  await f.create().daily(); assert.equal(f.sends.length, 1);
+  f.setTime(Date.UTC(2026, 9, 14, 1)); await f.create().daily(); assert.equal(f.sends.length, 2);
+});

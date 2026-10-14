@@ -1,5 +1,5 @@
 import { SafeError, isSafeArticleUrl } from './security.js';
-const allowedPath = /^\/open-apis\/(bitable\/v1\/apps\/[A-Za-z0-9]+\/tables\/[A-Za-z0-9]+\/(fields|records)(\/[A-Za-z0-9]+)?|im\/v1\/messages)$/;
+const allowedPath = /^\/open-apis\/(bitable\/v1\/apps\/[A-Za-z0-9_-]+\/tables\/[A-Za-z0-9_-]+\/(fields|records)(\/[A-Za-z0-9_-]+)?|im\/v1\/messages)$/;
 
 function validatePost(content) {
   if (typeof content !== 'string' || content.length > 100000) throw new SafeError('Invalid reading message.');
@@ -23,7 +23,7 @@ function validatePost(content) {
 export function validateFeishuOperation(config, method, path, { params, data } = {}) {
   const { baseToken, articleTableId, chatId } = config;
     const validOperation = method === 'GET' && /\/(fields|records)$/.test(path) ||
-      method === 'POST' && /\/(records|messages)$/.test(path) || method === 'PUT' && /\/records\/rec[A-Za-z0-9]+$/.test(path);
+      method === 'POST' && /\/(records|messages)$/.test(path) || method === 'PUT' && /\/records\/rec[A-Za-z0-9_-]+$/.test(path);
     if (!validOperation || !allowedPath.test(path)) throw new SafeError('Unsupported Feishu operation.');
     if (path.includes('/bitable/') && !path.startsWith(`/open-apis/bitable/v1/apps/${baseToken}/tables/${articleTableId}/`)) {
       throw new SafeError('The API request does not match your configured table.');
@@ -36,7 +36,7 @@ export function validateFeishuOperation(config, method, path, { params, data } =
       throw new SafeError('Only the configured reading-table fields may be created.');
     }
     if (method === 'PUT' && (Object.keys(data || {}).join() !== 'fields' || Object.keys(data.fields || {}).join() !== '阅读状态' ||
-        !['已读', '待阅读'].includes(data.fields.阅读状态))) throw new SafeError('Only an explicit reading-status update is allowed.');
+        !['已读', '待阅读', '跳过'].includes(data.fields.阅读状态))) throw new SafeError('Only an explicit reading-status update is allowed.');
     if (path.endsWith('/messages')) {
       if (!chatId || data?.receive_id !== chatId || data.msg_type !== 'post' || params?.receive_id_type !== 'chat_id' ||
           !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(data.uuid || '') ||

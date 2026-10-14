@@ -4,7 +4,7 @@ Read [README](../README.md), [SETUP](../SETUP.md), and [the connection contract]
 
 先阅读上述文档。优先配置用户已有环境，不为每次安装重写扩展核心代码。
 
-1. **Inspect, without exposing secrets.** Determine the available authenticated Feishu tools, verified identity, Bitable permissions, existing HTTPS routing, durable storage, shared locking, and optional scheduler. Do not scan unrelated credential files or infer authorization from a desktop login.
+1. **Inspect, without exposing secrets.** Determine the available authenticated Feishu / Google tools, verified identity, table permissions, existing HTTPS routing, durable storage, shared locking, and optional scheduler. Do not scan unrelated credential files or infer authorization from a desktop login.
 2. **Report the fit.** Distinguish local-only capture, table sync, and scheduled reminders. A chat integration is not proof of table access. If something is missing, say what; do not silently install software, open ports, create accounts, deploy hosting or expand permissions.
 3. **Adapt the existing tool.** Implement the small adapter in private integration code, following CONNECTION.md. Normalize pagination and errors. Preserve fixed-table restrictions and message UUIDs. Verify identity using actual authorization, not a constant copied from config. Do not claim a named product is supported until tested.
 4. **Write private configuration.** Use `private/` or the environment's own private storage. Leave reminders disabled initially. Run `npm run doctor -- --config <private-path>` for local format checks; this does not validate live capabilities.
@@ -27,3 +27,8 @@ Read [README](../README.md), [SETUP](../SETUP.md), and [the connection contract]
 Use the optional runnable examples and ordered initialization in [SETUP.md](../SETUP.md). Never read late-loaded credentials into module-level constants. Run schema preflight, preserve structured diagnostics and verify the shared lock across processes. Empty extensionId allows authenticated setup checks only; register the installed extension before browser use. A pasted table URL must match the host's authorized table; it cannot grant table access or rebind an existing collection.
 
 参考 SETUP 的可执行步骤：先初始化状态和密钥，再加载凭证、预检字段、安装扩展及登记 ID。延迟注入的凭证不得在模块级提前缓存；保留诊断编号并验证跨进程锁。设置页链接不能代替飞书授权，也不能静默重绑已有资料库。
+
+
+For an explicitly requested self-hosted setup, follow [SELF-HOSTING.md](SELF-HOSTING.md) / [中文部署指南](SELF-HOSTING.zh-CN.md). Select only the user-authorized provider and preconfigured profiles. Google prepare writes headers only on a blank target and adopts row metadata; run it only with table-write authorization. Provider switching uses Settings disconnect first; do not copy linked caches across identities. Schedule periodic checks using the persisted custom time/timezone; browser settings do not install jobs. Actual deployment, credential/account creation and test messages remain subject to the user's explicit scope.
+
+明确要求自建时按双语部署指南操作，仅启用用户授权的类型。Google prepare 会写空表表头与行身份，仅在有表格写入授权时执行。切换先取消关联，不跨身份复制关联缓存；定时任务轮询持久化时间／时区，界面不自动创建任务。部署、账号／凭证创建和测试消息仍以用户明确授权范围为准。

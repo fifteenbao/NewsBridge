@@ -36,7 +36,7 @@ export function createBridge({ config, adapter, store, now = () => Date.now() })
     if (!['health', 'sync', 'read', 'pending', 'resolve'].includes(action)) throw new SafeError('Unsupported connection operation.');
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new SafeError('Invalid connection request.');
     if (payload.expectedIdentity && (payload.expectedIdentity.connectionId !== config.connectionId || payload.expectedIdentity.base !== `${config.baseToken}/${config.articleTableId}`)) {
-      throw new SafeError('The connection identity or table differs from this collection. Use a separate Chrome profile rather than transferring cached reading data.');
+      throw new SafeError('The connection identity or table differs from this collection. Disconnect the current collection in Settings before associating another account or table.');
     }
     await client.verifyIdentity();
     if (action === 'health') return { ok: true, connected: true, schema: await knowledge.preflight(config), configuration: {
@@ -61,9 +61,11 @@ export function createBridge({ config, adapter, store, now = () => Date.now() })
       return { ok: true };
     }
     if (action === 'read') {
-      if (payload.base !== `${config.baseToken}/${config.articleTableId}` || !recordId(payload.recordId || '') || typeof payload.read !== 'boolean') throw new SafeError('Invalid record or configured table changed. Sync before editing status.');
+      const status = payload.status ?? (typeof payload.read === 'boolean' ? payload.read ? '已读' : '待阅读' : null);
+      if (payload.status !== undefined && payload.read !== undefined) throw new SafeError('Choose one reading-status representation.');
+      if (payload.base !== `${config.baseToken}/${config.articleTableId}` || !recordId(payload.recordId || '') || !['待阅读', '已读', '跳过'].includes(status)) throw new SafeError('Invalid record or configured table changed. Sync before editing status.');
       await client.request('PUT', `/open-apis/bitable/v1/apps/${config.baseToken}/tables/${config.articleTableId}/records/${payload.recordId}`,
-        { data: { fields: { 阅读状态: payload.read ? '已读' : '待阅读' } } });
+        { data: { fields: { 阅读状态: status } } });
       return { ok: true };
     }
     // Only the trusted scheduler supplies a reminder date; browser dispatch strips it.

@@ -12,9 +12,9 @@
 
 ## Product boundaries
 
-- Position NewsBridge as an open-source Chrome extension for saving articles, videos, and other content that takes time to understand, with Feishu Bitable as the data-management workspace. The core workflow is capture, organize, read or watch, take notes, and review related material.
+- Position NewsBridge as an open-source Chrome extension for saving articles, videos, and other content that takes time to understand, with Feishu Bitable or Google Sheets as the user-selected data-management workspace. The core workflow is capture, organize, read or watch, take notes, and review related material.
 - Capture stores page titles and links. Do not imply video downloading, transcription, automatic playback tracking, or AI knowledge synthesis unless those features are explicitly requested and implemented.
-- Keep reading-state synchronization part of the core workflow. Daily unread reminders are an optional supporting feature, triggered by the operator’s existing scheduler at 10:00 Asia/Shanghai by default. Chrome must never independently send daily reminders. Scheduling and durable storage belong to the chosen integration environment.
+- Keep reading-state synchronization part of the core workflow. Daily unread reminders are an optional supporting feature, triggered by the operator’s existing scheduler using the custom time/timezone in Settings (10:00 Asia/Shanghai by default). Chrome must never independently send daily reminders. Scheduling and durable storage belong to the chosen integration environment.
 - Do not add calendar booking or product-specific agent connectors. A generic adapter interface is authorized.
 - Do not add or redesign frontend pages as part of documentation, backend, or security work. Necessary changes to existing page logic should be limited to verified security or functional fixes, and their purpose should be explained.
 - Keep English and Simplified Chinese documentation aligned, preserve upstream attribution and the MIT license, and avoid personal credentials in committed examples.

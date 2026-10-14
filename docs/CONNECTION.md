@@ -57,7 +57,7 @@ const connector = createConnector({
 });
 ```
 
-Config keys are connectionId, baseToken, articleTableId, chatId, remindersEnabled, timeZone and language. Use `chatId: ""` and `remindersEnabled: false` for sync only. Defaults for omitted timezone/language are Asia/Shanghai and en. Store credentials outside config using the host's existing credential management.
+Config keys are storageProvider (feishu default, or google), connectionId, baseToken, articleTableId, chatId, remindersEnabled, reminderTime (10:00 default), timeZone and language. For Google the compatibility baseToken is a Spreadsheet ID and articleTableId is a numeric gid. Use `chatId: ""` and `remindersEnabled: false` for sync only. Defaults for omitted timezone/language are Asia/Shanghai and en. Store credentials outside config using the host's existing credential management.
 
 配置字段见示例。仅同步时 chatId 留空并关闭 remindersEnabled。凭证由宿主现有的安全存储管理，不写入公开源码或配置示例。
 
@@ -79,7 +79,7 @@ Expose the following authenticated POST endpoints (relative to `baseUrl`) in you
 | --- | --- | --- |
 | `v1/health` | `{tableUrl?: "https://…/base/… or /wiki/…"}` | `connected, capabilities, configuration, schema` |
 | `v1/sync` | `{items: [...]}` | `enabled, base, created, bindings, articles, topics, notifications` |
-| `v1/read` | `{base, recordId, read}` | Status write acknowledged / 状态写入确认 |
+| `v1/read` | `{base, recordId, status: "待阅读" | "已读" | "跳过"} or legacy read boolean` | Status write acknowledged / 状态写入确认 |
 | `v1/preferences` | `{language: "en" or "zh", table?: "baseToken/tableId", tableUrl?: "https://…", remindersEnabled?: boolean}` | Saved preferences / 保存偏好 |
 | `v1/pending` | `{}` | `{pending: null or {...}}` |
 | `v1/resolve` | `{uuid, outcome: "sent" or "not-sent"}` | Delivery reconciliation / 发送结果确认 |
@@ -137,7 +137,7 @@ Only `/v1/*` actions above are exposed. There is no HTTP daily-send endpoint, ar
 
 ## Scheduling and delivery / 调度与发送
 
-Register `connector.daily()` in the user's existing scheduler for local 10:00. Repeated checks after 10:00 are safe when the same persistent store/lock is used. This method derives the date from the configured timezone; the browser cannot supply a date to dispatch or trigger delivery. Enable reminders only after that scheduling is configured. A host that sleeps or stops cannot guarantee an on-time reminder.
+Register `connector.daily()` in the user's existing scheduler every minute/few minutes for the saved daily time (10:00 default). Repeated checks after that time are safe when the same persistent store/lock is used. This method derives the date from the configured timezone; the browser cannot supply a date to dispatch or trigger delivery. Enable reminders only after that scheduling is configured. A host that sleeps or stops cannot guarantee an on-time reminder.
 
 每日任务由已有调度器触发。日期取自配置时区；浏览器不能指定日期或触发发送。调度验证完成后再启用提醒。宿主休眠或停止时不能保证准点送达。
 
@@ -171,7 +171,7 @@ The adapter passes API field values through; the core writes plain strings to te
 | 链接 | 15 URL, 1 text | 15: `{text: title, link: url}`; 1: URL string | object.link or text; unsafe URL becomes empty / 不安全链接置空 |
 | 内容 | 1 text / 文本 | content string, default empty / 默认空 | string or rich-text text / 富文本提取纯文本 |
 | 类别 | 3 single, 4 multiple / 单选、多选 | 3: `"待分类"`; 4: `["待分类"]` | string or joined options with 、 / 多选以顿号拼接 |
-| 阅读状态 | 3 single / 单选 | `"待阅读"` or `"已读"` | 待阅读、阅读中 → read=false; all others → true, excluded from unread reminders / 其他状态不提醒 |
+| 阅读状态 | 3 single / 单选 | `"待阅读"`, `"已读"` or `"跳过"` | 待阅读、阅读中 → read=false; all others → true, excluded from unread reminders / 其他状态不提醒 |
 | 推荐指数 | 2 number/rating / 数字、评分（Rating） | omitted, no invented rating / 不自动评分 | number or null / 数字或空 |
 | 笔记 | 1 text / 文本 | empty string / 空字符串 | string or rich-text text; formatting not copied / 不复制排版 |
 | 时间 | 5 date / 日期 | Unix milliseconds from savedAt / 毫秒时间戳 | milliseconds or null; adapters must normalize custom date formats / 自定义日期须先转换 |
@@ -212,3 +212,26 @@ runtime 接受 base 和 wiki 分享链接，table 参数可省略；只匹配固
 On health/preferences with tableUrl, success includes `resolvedTable: {url, baseToken, articleTableId, base, source}`. url is the sanitized input URL, base equals the pinned identity base, and source is explicit-link, configured-table or wiki-node. Chrome validates this descriptor before pinning identity; preferences resolve again before persistence. LINK_RESOLVER_UNAVAILABLE identifies a missing adapter method, LINK_NOT_BITABLE a different object type, LINK_RESPONSE_INVALID a malformed result, and TABLE_MISMATCH an unauthorized target. Wiki API failures preserve numeric codes and the wiki.resolve stage. No automatic reconfiguration or migration occurs.
 
 解析结果在 health/preferences 成功响应中返回，并由 Chrome 验证；保存偏好前连接端会再次检查链接。缺少解析能力、非多维表格、响应无效、目标不匹配分别使用上述诊断编号。不会自动重配同步目标。
+
+Reading updates accept either status (待阅读 / 已读 / 跳过) or the earlier boolean read, never both. They update only 阅读状态. 跳过 is represented as read=true plus status=跳过 in the normalized snapshot, so it is distinguished from completion while excluded from unread selection. Chrome preserves that status when merging. Captures skipped offline create a record with 跳过 when later synced. Update the connection runtime/policy alongside the extension for this status.
+
+状态修改接受三态 status 或旧的 read 布尔值，两者不能同时提供，只写阅读状态字段。跳过在同步快照中保留 status，并使用 read=true 退出未读选择；不会删除或覆盖笔记。离线跳过的收藏后续创建时也保留“跳过”。需要同步更新连接端运行模块和策略。
+
+
+## V0.3.0 providers and association / 表格类型与关联
+
+See [self-hosting](SELF-HOSTING.md) / [中文部署](SELF-HOSTING.zh-CN.md). Browser requests may include provider=feishu|google; the host routes only preconfigured profiles and strips that routing field before dispatch. The runtime also validates it against its own storageProvider if supplied. A single-provider host rejects the other provider. Every result retains the verified account/table identity; selecting a provider never bypasses identity pinning or provision credentials.
+
+浏览器请求可带 provider=feishu|google，宿主仅路由预先配置的类型，核心同时校验类型。响应仍包含已验证的身份与目标表格；选择类型不能跳过身份锁定，也不授予凭证。
+
+The Google reference translates the existing restricted Feishu-shaped internal operations to Sheets API; it is not an arbitrary API relay. It supplies header-derived field descriptors, rec<metadataId> record IDs, literal eight-column values, metadata-targeted reading-status updates and optional separately verified Feishu messaging. Schema health is read-only. Operator prepare adopts imported rows; check --write verifies a disposable record. General spreadsheet creation/deletion, arbitrary ranges and formulas are not browser actions.
+
+Google 参考适配器将受限的内部飞书形态操作翻译成 Sheets API，校验八列表头，以 rec<metadataId> 表示稳定行身份，按元数据更新状态。飞书消息需另行验证应用身份。prepare 与写入自检仅供运维执行，不开放浏览器任意 API、区域、公式或表格删除操作。
+
+preferences accepts optional reminderTime (HH:mm) and timeZone (IANA) alongside existing keys. health.configuration returns storageProvider, reminderTime and the effective timezone. Profiles retain separate durable preferences/receipts. The scheduler polls; browser preference changes do not create scheduled jobs or trigger a send. Messages remain Feishu chats for either storage provider.
+
+preferences 新增可选 reminderTime（HH:mm）、timeZone（IANA）；health 回显实际值与 storageProvider。每种类型独立保存偏好与发送记录；调度器轮询，浏览器保存设置不建任务也不直接发消息。两种表格的提醒均发到已配置飞书会话。
+
+Disconnect is a Chrome-local atomic archive/reset. It does not clear server state, pending deliveries, revoke credentials or delete remote data. Reassociation pins a newly verified identity and restores only its matching archive. The frontend permits re-association on the same preconfigured HTTPS host; changing origins still needs private packaging.
+
+取消关联是 Chrome 本机的原子归档／重置，不删除服务端状态、未确认消息、授权或远端数据；重新关联后只恢复匹配身份的归档。跨 HTTPS 域名仍需重新生成私人扩展包。

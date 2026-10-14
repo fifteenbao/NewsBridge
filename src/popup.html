@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NewsBridge</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="popup">
+  <header class="brand"><span class="mark">NewsBridge</span></header>
+  <p class="card-note" data-i18n="popupHint">Save this page, or open your collection and settings.</p>
+  <button class="btn-primary" id="capture" data-i18n="capture">Save this page</button>
+  <nav class="popup-nav" aria-label="NewsBridge">
+    <button id="open-home" data-i18n="home">Home</button>
+    <button id="open-collection" data-i18n="collection">Collection</button>
+    <button id="open-settings" data-i18n="settings">Settings</button>
+  </nav>
+  <p id="capture-status" class="card-note" role="status" aria-live="polite"></p>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

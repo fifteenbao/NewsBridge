@@ -19,7 +19,7 @@ export function topicIds(value) {
 
 export function validateConfig(config = {}) {
   for (const key of ['baseToken', 'articleTableId', ...(config.topicTableId ? ['topicTableId'] : [])]) {
-    if (typeof config[key] !== 'string' || !/^[a-zA-Z0-9]+$/.test(config[key])) {
+    if (typeof config[key] !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(config[key])) {
       throw new SafeError(`请在扩展设置中填写有效的 ${key}（只填写 ID，不是完整链接）。`);
     }
   }
@@ -124,7 +124,7 @@ export function createKnowledgeService(request) {
         const linkIsText = articleFields.find(f => f.field_name === '链接').type === 1;
         const fields = { 标题: item.title || item.url,
           链接: linkIsText ? item.url : { text: item.title || item.url, link: item.url },
-          阅读状态: item.read ? '已读' : '待阅读',
+          阅读状态: item.status === '跳过' ? '跳过' : item.read ? '已读' : '待阅读',
           ...(legacy ? { 收藏ID: item.id, 收藏时间: Date.parse(item.savedAt) } : { 内容: item.content || '',
             类别: articleFields.find(f => f.field_name === '类别').type === 4 ? ['待分类'] : '待分类',
             笔记: '', 时间: Date.parse(item.savedAt) }) };

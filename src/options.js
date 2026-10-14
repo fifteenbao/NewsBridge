@@ -1,4 +1,7 @@
+import { isUnread, readingStatus } from './lib/reading-state.js';
+import { initialRoute, ROUTES } from './lib/navigation.js';
 import { chooseLanguage, translate, localizeError } from './lib/options-i18n.js';
+import { validateSchedule } from './lib/reminder-schedule.js';
 import { parseTableUrl } from './lib/table-url.js';
 import { CONNECTION_BASE_URL } from './lib/connection-config.js';
 import { isSafeArticleUrl } from './lib/security.js';
@@ -20,6 +23,7 @@ import {
 // A small inline SVG icon as an element.
 function svg(paths, width = "1.8") {
   const el = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  el.setAttribute("aria-hidden", "true");
   el.setAttribute("viewBox", "0 0 24 24");
   el.setAttribute("fill", "none");
   el.setAttribute("stroke", "currentColor");
@@ -49,14 +53,12 @@ function savedAgo(iso) {
 
 async function renderList() {
   const list = document.getElementById("list");
-  const items = await getItems();
+  const items = (await getItems()).filter(isUnread);
   list.replaceChildren();
 
   const count = document.getElementById("list-count");
   const unread = items.filter((it) => !it.read).length;
-  count.textContent = items.length
-    ? t('count', { total: items.length, unread })
-    : "";
+  count.textContent = t('count', { unread });
 
   if (items.length === 0) {
     list.appendChild(emptyState());
@@ -88,16 +90,19 @@ function renderItem(item, index) {
   li.className = "item" + (item.read ? " read" : "");
   li.style.animationDelay = `${Math.min(index, 10) * 25}ms`;
 
-  // Round read/unread checkbox.
-  const check = document.createElement("button");
-  check.className = "check";
-  check.title = t(item.read ? 'markUnread' : 'markRead');
-  check.setAttribute('aria-label', check.title);
-  check.appendChild(svg(["M20 6L9 17l-5-5"], "2.4"));
-  check.addEventListener("click", async () => {
-    check.disabled = true;
-    try { await mutate({ type: 'SET_READ', id: item.id, read: !item.read }); await renderList(); }
-    catch (error) { alert(errorText(error)); }
+  const check = document.createElement('select');
+  check.className = 'status-select';
+  check.setAttribute('aria-label', t('readingStatus', { title: item.title }));
+  check.setAttribute('aria-describedby', 'list-status');
+  for (const [value, key] of [['待阅读', 'unread'], ['已读', 'read'], ['跳过', 'skip']]) {
+    const option = document.createElement('option'); option.value = value; option.textContent = t(key); check.appendChild(option);
+  }
+  check.value = readingStatus(item);
+  check.addEventListener('change', async () => {
+    const status = check.value; check.disabled = true;
+    document.getElementById('list-status').textContent = '';
+    try { await mutate({ type: 'SET_STATUS', id: item.id, status }); await renderList(); await renderHome(); }
+    catch (error) { check.value = readingStatus(item); document.getElementById('list-status').textContent = errorText(error); }
     finally { check.disabled = false; }
   });
 
@@ -137,7 +142,7 @@ function renderItem(item, index) {
   del.setAttribute('aria-label', del.title);
   del.appendChild(svg(["M18 6L6 18", "M6 6l12 12"], "2"));
   del.addEventListener("click", async () => {
-    try { await mutate({ type: 'DELETE_ITEM', id: item.id }); await renderList(); }
+    try { await mutate({ type: 'DELETE_ITEM', id: item.id }); await renderList(); await renderHome(); }
     catch (error) { alert(errorText(error)); }
   });
 
@@ -157,8 +162,25 @@ async function mutate(message) {
 let connection = null, keyStatus = { saved: false }, validationSequence = 0, preferencesDirty = false, checkingConnection = false;
 let pending = null, authError = null, keyValidation = null, pendingError = null, tableLinkError = null;
 const element = id => document.getElementById(id);
+let currentRoute = 'settings';
+function applyRoute(route) {
+  currentRoute = ROUTES.includes(route) ? route : 'settings';
+  for (const view of ROUTES) element(view).hidden = view !== currentRoute;
+  for (const [id, view] of [['nav-home', 'home'], ['nav-collection', 'reading-list'], ['nav-settings', 'settings']]) {
+    if (view === currentRoute) element(id).setAttribute('aria-current', 'page'); else element(id).removeAttribute('aria-current');
+  }
+  document.title = `NewsBridge · ${t(currentRoute === 'reading-list' ? 'collection' : currentRoute)}`;
+}
+async function renderHome() {
+  const items = (await getItems()).filter(item => !item.feishuDeleted);
+  element('home-counts').textContent = t('homeCounts', { unread: items.filter(isUnread).length, skipped: items.filter(item => item.status === '跳过').length, read: items.filter(item => item.read && item.status !== '跳过').length });
+  element('home-status').textContent = t(connection?.connected && keyStatus.saved && keyStatus.matchesEndpoint ? 'homeReady' : 'homeNeedsSetup');
+}
 function fillSettings(settings) {
   element('language').value = settings.language;
+  element('provider').value = settings.provider || 'feishu';
+  element('reminderTime').value = settings.reminderTime || '10:00';
+  element('timeZone').value = settings.timeZone || 'Asia/Shanghai';
   element('tableUrl').value = settings.tableUrl || '';
   element('remindersEnabled').checked = settings.remindersEnabled === true;
 }
@@ -213,9 +235,14 @@ async function refreshKeyStatus() {
   keyStatus = await mutate({ type: 'KEY_STATUS' }); renderKeyStatus();
 }
 function collectSettings() {
+  for (const id of ['reminderTime', 'timeZone']) element(id).removeAttribute('aria-invalid');
+  try { validateSchedule(element('reminderTime').value, element('timeZone').value); } catch (error) {
+    for (const id of ['reminderTime', 'timeZone']) element(id).setAttribute('aria-invalid', 'true');
+    element('schedule-note').textContent = errorText(error); element('reminderTime').focus(); throw error;
+  }
   if (!tableFeedback()) { element('tableUrl').focus(); throw new Error(element('table-url-error').textContent); }
   const raw = element('tableUrl').value.trim();
-  return { tableUrl: raw ? parseTableUrl(raw).url : '', language: element('language').value,
+  return { provider: element('provider').value, reminderTime: element('reminderTime').value, timeZone: element('timeZone').value, tableUrl: raw ? parseTableUrl(raw).url : '', language: element('language').value,
     connectionAccessKey: element('connectionAccessKey').value.trim(),
     ...(!element('remindersEnabled').disabled ? { remindersEnabled: element('remindersEnabled').checked } : {}) };
 }
@@ -237,18 +264,24 @@ function renderConnection(status) {
   element('chatId').value = status?.connected ? config?.chatId || '' : '';
   element('remindersEnabled').disabled = !status?.connected || config?.remindersAvailable !== true;
   if (!preferencesDirty) {
+    if (config?.reminderTime) element('reminderTime').value = config.reminderTime;
+    if (config?.timeZone) element('timeZone').value = config.timeZone;
+    if (config?.storageProvider) element('provider').value = config.storageProvider;
     if (config?.language) element('language').value = config.language;
     element('remindersEnabled').checked = config?.remindersEnabled === true;
   }
-  element('schedule-note').textContent = config?.remindersAvailable ? t('schedule', { state: t(config.remindersEnabled ? 'on' : 'off'), zone: config.timeZone }) : t('scheduleUnavailable');
-  element('connection-meta').textContent = t('footer', { server: CONNECTION_BASE_URL || t('offline'), version: chrome.runtime.getManifest().version, protocol: status?.protocolVersion || t('unverified') });
+  element('provider').disabled = !!status?.connected;
+  element('schedule-note').textContent = config?.remindersAvailable ? t('schedule', { state: t(config.remindersEnabled ? 'on' : 'off'), zone: config.timeZone, time: config.reminderTime || '10:00' }) : t('scheduleUnavailable');
+  element('connection-meta').textContent = t('footer', { server: CONNECTION_BASE_URL || t('offline'), version: chrome.runtime.getManifest().version, extensionId: chrome.runtime.id || t('unverified'), protocol: status?.protocolVersion || t('unverified') });
   updateSyncButton(); renderPending();
+  renderHome().catch(() => { element('home-status').textContent = t('genericFailure'); });
 }
 function translatePage() {
   document.documentElement.lang = uiLanguage;
   element('ui-language').value = uiLanguage;
   for (const node of document.querySelectorAll('[data-i18n]')) node.textContent = t(node.getAttribute('data-i18n'));
   for (const node of document.querySelectorAll('[data-i18n-placeholder]')) node.setAttribute('placeholder', t(node.getAttribute('data-i18n-placeholder')));
+  applyRoute(currentRoute);
 }
 async function showConnection({ proposedKey = false } = {}) {
   const sequence = ++validationSequence;
@@ -259,7 +292,7 @@ async function showConnection({ proposedKey = false } = {}) {
   try {
     const rawLink = element('tableUrl').value.trim();
     const linkPayload = rawLink ? { tableUrl: parseTableUrl(rawLink).url } : {};
-    const status = await mutate(proposedKey ? { type: 'VALIDATE_CONNECTION', ...linkPayload, ...(value ? { accessKey: value } : {}) } : { type: 'CONNECTION_STATUS', ...linkPayload });
+    const status = await mutate(proposedKey ? { type: 'VALIDATE_CONNECTION', provider: element('provider').value, ...linkPayload, ...(value ? { accessKey: value } : {}) } : { type: 'CONNECTION_STATUS', provider: element('provider').value, ...linkPayload });
     if (sequence !== validationSequence) return;
     checkingConnection = false; renderConnection(status);
     element('connectionAccessKey').removeAttribute('aria-invalid');
@@ -311,6 +344,8 @@ async function init() {
   const { uiLanguage: savedLanguage } = await chrome.storage.local.get('uiLanguage');
   uiLanguage = chooseLanguage(savedLanguage, chrome.i18n?.getUILanguage() || globalThis.navigator?.language || 'en');
   translatePage();
+  applyRoute(initialRoute(location.hash, false));
+  globalThis.addEventListener?.('hashchange', () => applyRoute(initialRoute(location.hash, connection?.connected && keyStatus.saved && keyStatus.matchesEndpoint && !element('sync').disabled)));
   await renderList();
   await showSyncStatus();
   fillSettings(await getSettings());
@@ -322,9 +357,17 @@ async function init() {
     uiLanguage = chooseLanguage(element('ui-language').value);
     await chrome.storage.local.set({ uiLanguage });
     translatePage(); renderKeyStatus(); renderConnection(connection);
-    await renderList(); await showSyncStatus();
+    await renderList(); await renderHome(); await showSyncStatus();
   });
   element('language').addEventListener('change', () => { preferencesDirty = true; });
+  for (const id of ['reminderTime', 'timeZone']) element(id).addEventListener('change', () => { preferencesDirty = true; });
+  element('provider').addEventListener('change', () => { validationSequence++; connection = null; renderConnection(null); });
+  element('disconnect').addEventListener('click', async () => {
+    validationSequence++; checkingConnection = false; tableLinkError = null; keyValidation = null; pendingError = null;
+    try { await mutate({ type: 'DISCONNECT' }); connection = null; pending = null; preferencesDirty = false; authError = null;
+      fillSettings({ language: 'en' }); element('connectionAccessKey').value = ''; await refreshKeyStatus(); renderConnection(null); await renderList(); applyRoute('settings');
+    } catch (error) { element('auth-status').textContent = errorText(error); }
+  });
   element('remindersEnabled').addEventListener('change', () => { preferencesDirty = true; });
   element('connectionAccessKey').addEventListener('input', () => {
     validationSequence++; checkingConnection = false; authError = null; pendingError = null;
@@ -337,7 +380,7 @@ async function init() {
     const result = await mutate({ type: 'SAVE_SETTINGS', settings: collectSettings() });
     preferencesDirty = false; fillSettings(result.settings);
     element('connectionAccessKey').value = ''; await refreshKeyStatus();
-    flashSaved(); await showConnection();
+    flashSaved(); await showConnection(); await renderList();
   });
   bindAction('check-connection', () => showConnection({ proposedKey: true }));
   bindAction('sync', async () => { await mutate({ type: 'SYNC' }); await showSyncStatus(); await showConnection(); });
@@ -346,17 +389,14 @@ async function init() {
   }
   try { await showConnection(); } catch { /* showConnection renders the failure. */ }
 
-  // The right-click menu opens this page with #reading-list or #settings so the
-  // browser jumps to the relevant section. We nudge the scroll to be sure.
-  if (['#settings', '#reading-list'].includes(location.hash)) {
-    const target = document.getElementById(location.hash.slice(1));
-    if (target) target.scrollIntoView({ behavior: "instant", block: "start" });
-  }
+  const configured = connection?.connected && keyStatus.saved && keyStatus.matchesEndpoint && !element('sync').disabled;
+  applyRoute(initialRoute(location.hash, configured));
+  await renderHome(); await renderList();
 
   // Keep the list fresh if a save happens (from the toolbar icon) while this
   // tab is open.
   chrome.storage.onChanged.addListener((changes) => {
-    if (changes.items) renderList();
+    if (changes.items) { renderList(); renderHome(); }
     if (changes.knowledgeSync) showSyncStatus();
   });
 }

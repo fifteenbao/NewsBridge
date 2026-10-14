@@ -8,22 +8,36 @@
   </head>
   <body class="options">
     <div class="options-wrap">
-      <header class="options-head"><div class="brand"><span class="mark">NewsBridge</span></div></header>
-      <p class="options-lede" data-i18n="lede">Save articles and videos worth your time. Organize your collection in Feishu Bitable.</p>
-      <nav class="dash-nav"><a href="#reading-list" data-i18n="readingList">Reading list</a><a href="#settings" data-i18n="settings">Settings</a></nav>
-      <section id="reading-list">
-        <div class="section-head"><h1 class="display-h" data-i18n="readingList">Reading list</h1><span class="count" id="list-count"></span></div>
-        <div class="card list-card"><ul class="list dash-list" id="list"></ul></div>
-      </section>
-      <section id="settings">
-        <div class="section-head"><h2 class="display-h" data-i18n="settings">Settings</h2></div>
+      <header class="options-head">
+        <div class="brand"><span class="mark">NewsBridge</span></div>
+        <nav class="dash-nav" aria-label="NewsBridge">
+          <a id="nav-home" href="#home" data-i18n="home">Home</a>
+          <a id="nav-collection" href="#reading-list" data-i18n="collection">Collection</a>
+          <a id="nav-settings" href="#settings" data-i18n="settings">Settings</a>
+        </nav>
+        <div class="header-language"><label for="ui-language" data-i18n="interfaceLanguage">Interface language</label><select id="ui-language" aria-describedby="ui-language-hint"><option value="en">English</option><option value="zh">简体中文</option></select></div>
+        <p id="ui-language-hint" class="field-hint" data-i18n="interfaceHint">Saved on this device. This does not change the language of Feishu reminders.</p>
+      </header>
+      <section id="home" hidden>
+        <div class="section-head"><h1 class="display-h" data-i18n="home">Home</h1></div>
+        <p class="options-lede" data-i18n="lede">Save articles and videos worth your time. Organize your collection in Feishu Bitable or Google Sheets.</p>
         <section class="card">
-          <div class="field">
-            <div><label class="field-label" for="ui-language" data-i18n="interfaceLanguage">Interface language</label><p class="field-hint" id="ui-language-hint" data-i18n="interfaceHint">Saved on this device. This does not change the language of Feishu reminders.</p></div>
-            <div class="field-control"><select id="ui-language" aria-describedby="ui-language-hint"><option value="en">English</option><option value="zh">简体中文</option></select></div>
-          </div>
-          <h3 data-i18n="connection">Feishu connection</h3>
-          <p class="card-note" data-i18n="connectionHint">Save locally, or connect your authorized Feishu workspace to sync your collection.</p>
+          <p id="home-counts" class="card-note"></p>
+          <p id="home-status" class="card-note" role="status"></p>
+          <p class="card-note" data-i18n="homeGuide">Open an article or video, click NewsBridge and choose Save this page. Your collection shows unread items; mark them read or skip them when done.</p>
+        </section>
+      </section>
+      <section id="reading-list" hidden>
+        <div class="section-head"><h1 class="display-h" data-i18n="unreadCollection">Unread collection</h1><span class="count" id="list-count"></span></div>
+        <div class="card list-card"><ul class="list dash-list" id="list"></ul></div>
+        <p id="list-status" class="card-note" role="alert"></p>
+      </section>
+      <section id="settings" hidden>
+        <div class="section-head"><h1 class="display-h" data-i18n="settings">Settings</h1></div>
+        <section class="card">
+          <h2 data-i18n="connection">Table connection</h2>
+          <p class="card-note" data-i18n="connectionHint">Save locally, or connect your authorized table to sync your collection.</p>
+          <div class="field"><label class="field-label" for="provider" data-i18n="provider">Table provider</label><div class="field-control"><select id="provider" aria-describedby="provider-hint"><option value="feishu" data-i18n="feishuProvider">Feishu Bitable</option><option value="google" data-i18n="googleProvider">Google Sheets</option></select><p id="provider-hint" class="field-hint" data-i18n="providerHint">The connection service must configure the selected provider. Disconnect before switching a linked collection.</p><button type="button" id="disconnect" data-i18n="disconnect">Disconnect collection</button><p class="field-hint" data-i18n="disconnectHint">Keeps a local archive and remote data. Server reminders continue until paused in Settings.</p></div></div>
           <div class="field">
             <div><label class="field-label" for="connectionAccessKey" data-i18n="accessKey">Connection access key</label><p class="field-hint" id="key-hint" data-i18n="keyHint">Get the dedicated NewsBridge key from whoever configured your connection service, or from its existing credential store.</p></div>
             <div class="field-control"><input type="password" id="connectionAccessKey" aria-describedby="key-hint key-safety key-status key-validation" autocomplete="off" spellcheck="false" /></div>
@@ -34,31 +48,33 @@
             <pre><code>node examples/run.mjs init private/host.json</code></pre>
             <p class="card-note" data-i18n="keyFile">Open access.key in your configured stateDir and paste its contents here. The example configuration uses private/state/access.key. Initialization preserves an existing key.</p>
           </details>
-          <p id="key-safety" class="card-note" data-i18n="keySafety">Use the connection key here, not a Feishu App Secret or access token. Leave blank to keep a saved key. To rotate it, replace the host key, then enter and save the new key here. Reinstallation or another Chrome profile may require entering it again.</p>
+          <p id="key-safety" class="card-note" data-i18n="keySafety">Use the connection key here, not a provider App Secret, JSON private key or access token. Leave blank to keep a saved key. To rotate it, replace the host key, then enter and save the new key here. Reinstallation or another Chrome profile may require entering it again.</p>
           <p id="key-status" class="card-note" role="status" aria-live="polite"></p>
           <p id="key-validation" class="card-note" role="status" aria-live="polite"></p>
           <div class="field">
-            <div><label class="field-label" for="tableUrl" data-i18n="tableLink">Feishu Bitable link</label><p class="field-hint" id="table-url-hint" data-i18n="tableHint">Paste a Feishu /base/ or /wiki/ share link. Links without table= use the connected service’s configured table in the same base. Wiki links resolve when you check the connection.</p></div>
+            <div><label class="field-label" for="tableUrl" data-i18n="tableLink">Feishu / Google Sheets link</label><p class="field-hint" id="table-url-hint" data-i18n="tableHint">Paste a Google Sheets link (gid selects the tab), or a Feishu /base/ or /wiki/ share link. Missing table= / gid uses the connected service’s configured table/tab in the same base/spreadsheet. Wiki links resolve when you check the connection.</p></div>
             <div class="field-control"><input type="url" id="tableUrl" autocomplete="off" spellcheck="false" aria-describedby="table-url-hint table-url-error" /><p id="table-url-error" role="status" aria-live="polite"></p></div>
           </div>
           <div class="field">
-            <div><label class="field-label" for="baseToken" data-i18n="baseToken">Bitable base token</label><p class="field-hint" id="base-hint" data-i18n="baseHint">Parsed from /base/, or returned after resolving a wiki link.</p></div>
+            <div><label class="field-label" for="baseToken" data-i18n="baseToken">Base token / Spreadsheet ID</label><p class="field-hint" id="base-hint" data-i18n="baseHint">Parsed from a Google /d/ or Feishu /base/ link; wiki links resolve on the server.</p></div>
             <div class="field-control"><input type="text" id="baseToken" data-i18n-placeholder="idPlaceholder" placeholder="Paste a table link to fill automatically" aria-describedby="base-hint table-id-source" autocomplete="off" readonly /></div>
           </div>
           <div class="field">
-            <div><label class="field-label" for="articleTableId" data-i18n="tableId">Table ID</label><p class="field-hint" id="table-id-hint" data-i18n="tableIdHint">From table= when present; otherwise from the verified connection’s configured table.</p></div>
+            <div><label class="field-label" for="articleTableId" data-i18n="tableId">Table ID</label><p class="field-hint" id="table-id-hint" data-i18n="tableIdHint">From table= or Google gid when present; otherwise from the verified connection’s configured table.</p></div>
             <div class="field-control"><input type="text" id="articleTableId" data-i18n-placeholder="idPlaceholder" placeholder="Paste a table link to fill automatically" aria-describedby="table-id-hint table-id-source" autocomplete="off" readonly /></div>
           </div>
           <p id="table-id-source" class="card-note" role="status" aria-live="polite"></p>
           <div class="options-foot"><button class="save-btn" id="check-connection" data-i18n="check">Check connection / Retry</button><button class="save-btn" id="sync" disabled aria-describedby="sync-help" data-i18n="sync">Sync reading library</button></div>
           <p class="card-note" id="sync-help"></p>
           <p class="card-note" id="auth-status" role="status" aria-live="polite"></p>
-          <h3 data-i18n="messages">Reading reminders</h3>
-          <p class="card-note" data-i18n="reminderExplanation">Only daily reminders need a conversation ID. Saving and syncing Bitable work without one. A reminder never marks an item as read.</p>
+          <h2 data-i18n="messages">Reading reminders</h2>
+          <p class="card-note" data-i18n="reminderExplanation">Only daily reminders need a conversation ID. Saving and syncing either table provider work without one. A reminder never marks an item as read.</p>
           <div class="field">
             <div><label class="field-label" for="remindersEnabled" data-i18n="reminders">Daily unread reminders</label><p id="reminder-help" class="field-hint" data-i18n="reminderHint">Optional. Configure the connection scheduler first; save settings to apply this switch.</p></div>
             <div class="field-control"><input type="checkbox" id="remindersEnabled" disabled aria-describedby="reminder-help schedule-note" /></div>
           </div>
+          <div class="field"><label class="field-label" for="reminderTime" data-i18n="reminderTime">Daily reminder time</label><div class="field-control"><input id="reminderTime" type="time" value="10:00" aria-describedby="schedule-note" /></div></div>
+          <div class="field"><label class="field-label" for="timeZone" data-i18n="timeZone">Timezone (IANA)</label><div class="field-control"><input id="timeZone" type="text" value="Asia/Shanghai" aria-describedby="schedule-note" /></div></div>
           <div class="field">
             <div><label class="field-label" for="chatId" data-i18n="chatId">Reminder conversation ID</label><p class="field-hint" id="chat-id-hint" data-i18n="chatHint">For reminders only. Returned by the connection service (chat_id, usually oc_…). It cannot be derived from a Bitable link; configure the target conversation in that service.</p></div>
             <div class="field-control"><input type="text" id="chatId" data-i18n-placeholder="chatPlaceholder" placeholder="Optional — configure on the connection for reminders" aria-describedby="chat-id-hint" autocomplete="off" readonly /></div>
@@ -71,7 +87,7 @@
         </section>
         <div class="options-foot"><button class="save-btn" id="save" data-i18n="save">Save settings</button><span class="saved-note" id="saved-note" role="status" data-i18n="saved">Saved</span></div>
         <section class="card" id="pending-card" hidden>
-          <h3 data-i18n="pendingHeading">Check an unconfirmed message</h3>
+          <h2 data-i18n="pendingHeading">Check an unconfirmed message</h2>
           <p class="card-note" id="pending-note"></p>
           <p class="card-note" data-i18n="pendingHint">Check the target Feishu conversation before choosing a result. Previous delivery receipts are preserved.</p>
           <div class="options-foot"><button class="save-btn" id="confirm-sent" data-i18n="confirmSent">I verified it was delivered</button><button class="save-btn" id="confirm-not-sent" data-i18n="confirmNotSent">I verified it was not delivered</button></div>

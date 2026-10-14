@@ -15,7 +15,7 @@ export function mergeKnowledge(items, result) {
       return item;
     }
     return { ...item, title: record.title || item.title, url: record.url,
-      read: record.read, feishuRecordId: record.recordId, feishuBase: result.base,
+      read: record.read, status: record.status, feishuRecordId: record.recordId, feishuBase: result.base,
       notifiedAt: sent[record.recordId] || null,
       feishuDeleted: false, content: record.content, category: record.category, recommendation: record.recommendation,
       note: record.note, topics: record.topicIds.map(id => topics.get(id)).filter(Boolean) };
@@ -25,7 +25,7 @@ export function mergeKnowledge(items, result) {
     if (known.has(record.recordId) || !isSafeArticleUrl(record.url)) continue;
     merged.push({ id: `feishu:${result.base}/${record.recordId}`, title: record.title || record.url, url: record.url,
       savedAt: new Date(Number.isFinite(record.savedAt) ? record.savedAt : Date.now()).toISOString(),
-      read: record.read, notifiedAt: sent[record.recordId] || null, feishuRecordId: record.recordId, feishuBase: result.base,
+      read: record.read, status: record.status, notifiedAt: sent[record.recordId] || null, feishuRecordId: record.recordId, feishuBase: result.base,
       feishuDeleted: false, content: record.content, category: record.category, recommendation: record.recommendation,
       note: record.note, topics: record.topicIds.map(id => topics.get(id)).filter(Boolean) });
   }

@@ -120,4 +120,26 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
   assert.equal(records.some(record => record.fields.标题 === 'Offline capture'), false);
   assert.equal(badges.at(-1), '!');
   assert.match(titles.at(-1), /Saved locally — sync failed/);
+  chrome.tabs.query = async () => [{ url: 'https://example.com/popup-capture', title: 'Popup capture' }];
+  const popupSend = message => new Promise(resolve => chrome.runtime.onMessage.emit(message,
+    { id: 'test', url: chrome.runtime.getURL('src/popup.html') }, resolve));
+  const popupResult = await popupSend({ type: 'CAPTURE_PAGE' });
+  assert.equal(popupResult.saved, true); assert.equal(popupResult.synced, false);
+  assert.ok(local.items.some(item => item.title === 'Popup capture'));
+  assert.equal((await popupSend({ type: 'CAPTURE_PAGE', url: 'https://untrusted.example.com' })).ok, false);
+  let popupReplied = false;
+  assert.equal(handler({ type: 'SAVE_SETTINGS', settings: { language: 'zh' } },
+    { id: 'test', frameId: 0, url: chrome.runtime.getURL('src/popup.html') }, () => { popupReplied = true; }), undefined);
+  assert.equal(popupReplied, false);
+  const status = value => new Promise(resolve => chrome.runtime.onMessage.emit({ type: 'SET_STATUS', id: captured.id, status: value },
+    { id: 'test', url: chrome.runtime.getURL('src/options.html') }, resolve));
+  const preserved = structuredClone(local.items);
+  assert.equal((await status('跳过')).ok, false); assert.deepEqual(local.items, preserved);
+  unavailable = false;
+  assert.equal((await status('跳过')).ok, true);
+  assert.equal(records[1].fields.阅读状态, '跳过');
+  assert.equal(local.items.find(item => item.id === captured.id).status, '跳过');
+  assert.equal(local.items.find(item => item.id === captured.id).read, true);
+  assert.equal((await status('待阅读')).ok, true);
+  assert.equal(local.items.find(item => item.id === captured.id).read, false);
 });

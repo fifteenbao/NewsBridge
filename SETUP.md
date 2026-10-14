@@ -2,11 +2,21 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
+**Self-hosting Feishu / Google:** [English deployment guide](docs/SELF-HOSTING.md) · [中文自建部署指南](docs/SELF-HOSTING.zh-CN.md). V0.3.0 supports provider selection, disconnect/reassociation and custom daily time/timezone.
+
+**飞书 / Google 自建服务：** 详见上述双语部署指南。V0.3.0 支持类型选择、取消关联再切换，以及自定义每日时间与时区。
+
 ## 1. Install locally / 本地安装
 
 Run `npm run build` with Node.js 22+ and load `dist/newsbridge/` at `chrome://extensions` → Developer mode → Load unpacked. Alternatively unzip the generated `dist/newsbridge.zip`. The source root is also loadable. Keep the chosen directory at a stable path. Chrome 106+ is required; no runtime service is needed for local capture.
 
 使用 Node.js 22+ 执行 `npm run build`，在 Chrome 扩展管理页开启开发者模式，加载 `dist/newsbridge/`；也可以解压生成的 ZIP 或直接加载源码根目录。保持加载目录不变。要求 Chrome 106+，本地收藏无需后台服务。
+
+### Keep the installation path and extension ID / 固定安装目录与扩展 ID
+
+**Unpacked extension IDs can change when the folder path changes.** This public manifest has no fixed key. Keep the same installation folder and Chrome profile; replace files there and click Reload for updates. A fixed folder helps preserve the ID, but is not a promise across computers/profiles. After moving or re-extracting elsewhere, copy the actual ID from chrome://extensions (also shown in the settings footer), update the connection's private extensionId allowlist, and recreate/restart its handler. Otherwise the handler returns **403 ORIGIN_DENIED**. Re-entering the access key alone will not fix an origin mismatch. [Chrome documents the key mechanism for maintaining an ID](https://developer.chrome.com/docs/extensions/reference/manifest/key).
+
+**未固定 key 的已解压扩展，换解压目录可能改变扩展 ID。** 更新时在同一 Chrome 配置中覆盖固定安装目录，再点击“重新加载”。这不能保证跨设备或跨 Chrome 配置的 ID 一致。移动目录或解压到新位置后，请从 chrome://extensions（或设置页页脚）复制实际 ID，更新连接端私人配置的 extensionId 白名单，并重建/重启处理器。否则会报 **403 ORIGIN_DENIED**；只重填密钥不能解决来源不匹配。不要把白名单改成通配符。
 
 ## 2. Inspect the existing environment / 检查现有环境
 
@@ -52,9 +62,9 @@ Configure the same `baseUrl` in the existing connection handler and preserve the
 
 连接端使用相同 baseUrl，路由保留目录前缀。Chrome 域名权限不能按子目录隔离，详见接口文档的路径与安全说明。
 
-Give the resulting 32-character extension ID to the existing connection's origin validator. In Settings enter its dedicated access key, choose **Save settings**, then **Check connection** and **Sync reading library**. The key is an opaque 32–512 character base64url credential issued by the host environment; do not reuse a Feishu access token. Changes to the endpoint require re-entering the key. Changing identity/table requires a separate Chrome profile to avoid mixing collections.
+Give the resulting 32-character extension ID to the existing connection's origin validator. In Settings enter its dedicated access key, choose **Save settings**, then **Check connection** and **Sync reading library**. The key is an opaque 32–512 character base64url credential issued by the host environment; do not reuse a Feishu access token. Changes to the endpoint require re-entering the key. Before changing identity/table/provider, disconnect in Settings to archive the current collection, then reassociate. Separate profiles remain optional.
 
-将生成的扩展 ID 填入连接端的来源校验。在 Settings 输入连接专用密钥，保存设置、检查连接并同步。密钥由宿主环境签发，使用 32–512 位 base64url 字符，不复用飞书令牌。更换地址后需重新填写密钥；换账号或表格时使用独立 Chrome 配置，避免混合资料库。
+将生成的扩展 ID 填入连接端的来源校验。在 Settings 输入连接专用密钥，保存设置、检查连接并同步。密钥由宿主环境签发，使用 32–512 位 base64url 字符，不复用飞书令牌。更换地址后需重新填写密钥；换账号、表格或类型前在设置页取消关联，归档当前资料库，再重新关联；也可选用独立 Chrome 配置。
 
 ## 4. Verify and optionally schedule / 验证并按需设置提醒
 
@@ -62,9 +72,9 @@ Verify a capture appears once in Bitable, existing notes survive sync, read/unre
 
 用临时测试素材验证收藏不重复、笔记不被覆盖、双向状态同步和删除后不重建。飞书授权及续期由已有连接工具负责。
 
-For reminders, verify message access to the configured chat, durable receipt storage and a lock shared by all requests and scheduled jobs. Register `connector.daily()` in the existing scheduler at 10:00 in the configured timezone, then set `remindersEnabled: true`. Calling it after 10:00 may send a real message; do not use it as a read-only connection check. If no scheduler is available, keep reminders disabled.
+For reminders, verify message access to the configured chat, durable receipt storage and a lock shared by all requests and scheduled jobs. Poll `connector.daily()` every minute/few minutes with the existing scheduler; it waits for the daily time/timezone saved in Settings (10:00 Asia/Shanghai by default), then set `remindersEnabled: true`. Calling it after the configured time may send a real message; do not use it as a read-only connection check. If no scheduler is available, keep reminders disabled.
 
-提醒需验证会话发送权限、持久化发送记录，以及所有请求与定时任务共用的锁。在已有调度器注册每天 10 点的 `connector.daily()`，再开启 remindersEnabled。10 点后调用可能真实发消息，不可用于只读检查；没有调度器就保持关闭。
+提醒需验证会话发送权限、持久化发送记录，以及所有请求与定时任务共用的锁。在已有调度器每分钟或每几分钟检查 `connector.daily()`，按设置页保存的每日时间／时区判断（默认 10:00 Asia/Shanghai），再开启 remindersEnabled。到达配置时间后调用可能真实发消息，不可用于只读检查；没有调度器就保持关闭。
 
 If a send is uncertain, inspect the conversation and resolve it in Settings. Do not erase receipts to force a retry. Back up private state using your existing environment's tools.
 
@@ -72,7 +82,7 @@ If a send is uncertain, inspect the conversation and resolve it in Settings. Do 
 
 ## Runnable reference and startup order / 可运行参考与启动顺序
 
-These optional examples use Node 22+ and a POSIX local filesystem. They do not deploy anything or start a listener. The custom-app adapter is one supported reference route, not a dependency imposed on other agents/tools. It uses [Feishu's custom-app tenant token API](https://open.feishu.cn/document/server-docs/authentication-management/access-token/tenant_access_token_internal). Have an authorized app, table read/write scopes and table access ready; message delivery additionally needs bot/message permissions and target-chat membership.
+These optional examples use Node 22+ and a POSIX local filesystem. Imports do not deploy or start a listener. The separate opt-in examples/serve.mjs entry is documented in the self-hosting guide. The custom-app adapter is one supported reference route, not a dependency imposed on other agents/tools. It uses [Feishu's custom-app tenant token API](https://open.feishu.cn/document/server-docs/authentication-management/access-token/tenant_access_token_internal). Have an authorized app, table read/write scopes and table access ready; message delivery additionally needs bot/message permissions and target-chat membership.
 
 参考实现需要 Node 22+、POSIX 本机文件系统，不会部署或启动监听服务。自建应用只是可运行的参考方式，不限制其他工具实现协议。准备已授权应用、表格读写权限及目标表格访问权；提醒另需机器人发消息权限与目标会话成员资格。
 
@@ -83,7 +93,7 @@ These optional examples use Node 22+ and a POSIX local filesystem. They do not d
 5. In your **existing HTTPS host**, call `createHost(await loadHostConfig(path))` from `examples/host.js` and mount its handleRequest. Preserve the configured external URL and prefix. The host still owns TLS, timeouts and admission limits; these examples supply no standalone web server. An empty extensionId permits startup and authenticated non-browser checks while blocking Chrome access.
 6. Build with `npm run build -- --config private/host.json`, extract the connected ZIP and load its folder at chrome://extensions. Copy Chrome's real ID into private/host.json and restart/recreate the host handler. Recheck the ID if Chrome reports access denied; do not replace it with a wildcard.
 7. The extension opens Settings on first installation; otherwise right-click its icon → Settings. Paste the Feishu table or wiki share URL and securely copy the **connection access.key**, not App Secret/Feishu token. Check connection validates without saving; Save settings verifies the table target and stores the key/preferences. The key status and timestamp confirm local persistence. The offline package saves the link locally but cannot connect using a table link alone. Then sync and verify a permitted test capture and read-status update.
-8. Only if reminders are requested, configure chatId and the existing 10:00 scheduler, then enable remindersEnabled. The explicit command `node examples/run.mjs daily private/host.json` **can send messages**. It is not a health check. All browser and scheduler processes must use the same stateDir and exclusive lock.
+8. Only if reminders are requested, configure chatId and the existing scheduler polling the custom daily time, then enable remindersEnabled. The explicit command `node examples/run.mjs daily private/host.json` **can send messages**. It is not a health check. All browser and scheduler processes must use the same stateDir and exclusive lock.
 
 中文顺序：①复制私人配置并设置 HTTPS 地址、应用身份和表格 ID；stateDir 相对于配置文件。②运行 init 创建状态文件和专用 access.key。③通过现有密钥管理注入环境，适配器在调用时读取，避免模块导入早于环境加载。④运行 check 预检，pending 排查待确认发送。⑤将参考宿主挂载到已有 HTTPS 环境，extensionId 可暂留空但此时 Chrome 被拒绝。⑥打包、安装扩展、填真实 ID 并重启处理器。⑦设置页粘贴多维表格直接链接与连接专用密钥，保存校验、再同步。⑧有需要才启用定时提醒；daily 会真实发送，不能用于健康检查。
 
@@ -185,3 +195,33 @@ Ordinary “copy link” URLs with `from=from_copylink` are supported. Nonessent
 Wiki links require the optional `adapter.resolveWikiNode(nodeToken)` and current credentials with node read access. The reference adapter calls [Get Wiki node information](https://open.feishu.cn/document/server-docs/docs/wiki-v2/space-node/get_node) through the fixed Feishu API endpoint, with the node token as a query parameter. It verifies obj_type=bitable and uses obj_token as the base, then checks the configured base/table. Permission failures retain the numeric provider code and health.wiki.resolve stage. Non-Bitable nodes and mismatched targets stop without saving preferences or uploading records. Update the connection runtime/adapter along with the extension to support this interface.
 
 知识库链接需连接适配器提供只读节点解析，并获得该节点读取权限。参考适配器仅调用固定的飞书节点查询接口；确认对象类型为 bitable，再以真实 obj_token 核对授权目标。缺少读取权限、节点不是多维表格或目标不匹配时会明确报错，不保存新偏好、不上传记录。此能力需同时更新插件与连接端运行模块/适配器；只有插件更新无法增加连接端的解析能力。
+
+## Create the eight-field table / 一键创建八字段表
+
+The optional operator command uses the reference custom-app credential environment (no required CLI/provider). Prepare private/host.json and its credentials first; the output directory must be private (0700) and owned by the current account. To create a **new Bitable and reading table**, run:
+
+```sh
+node scripts/create-table.mjs private/host.json --env private/host.env --new-base --output private/new-host.json
+```
+
+To create a new reading table inside the configured existing base, omit --new-base. The command creates a table with exactly 标题、链接、内容、类别、阅读状态、推荐指数、笔记、时间, predefines 待阅读/阅读中/已读/跳过 and 待分类 options, verifies the field schema, and runs sync with zero captures against the newly created zero-record table. **It inserts no seed record.** It needs the corresponding app/base/table creation and read permissions; those are separate from ordinary record synchronization permissions. API permission failures include numeric codes and setup.app.create/setup.table.create stages.
+
+一键脚本使用参考自建应用的现有凭证，不依赖特定 CLI 或托管平台。--new-base 新建多维表格及八字段阅读表；不加该参数则在配置指定的现有多维表格中创建新数据表。脚本设置三种基础阅读状态及阅读中状态，验证字段和零记录同步，不写入种子记录；需要相应创建和读取权限，缺少权限会显示平台数字错误码。
+
+The script never overwrites the input or an existing output config. It writes a new 0600 host config with a separate stateDir and reminders disabled, plus a private .progress.json journal before external effects. After success it prints init and check --write commands. Initialize the generated config, then mount it in your chosen existing environment and disconnect the current collection in Settings before associating this new collection. If new Bitable creation adds a default table, the script leaves it intact. Share/access membership for a bot-owned base must be configured through your existing permission workflow; the command does not automatically grant other users access.
+
+输入配置和已有输出文件不会被覆盖，新配置使用独立状态目录并默认关闭提醒。脚本在外部操作前记录私人进度，成功后打印初始化及写入自检命令。将新配置初始化后接入已有环境，关联新资料库前在设置页取消当前关联。飞书自动创建的默认表不会被删除；应用拥有的新表需按既有授权流程向用户开放，脚本不自动修改协作者。
+
+On timeout/failure, inspect the output's .progress.json and the actual Bitable before retrying: table/base creation is not automatically retried or rolled back. If a create result was lost, locate the requested name before deciding to retry. Do not delete unrelated tables. Only a successful live run proves an empty table works with the actual app permissions; repository tests mock Feishu. For a temporary verification, use --new-base, complete the read-only empty check and optional explicit write probe, then remove only that temporary base/table in Feishu after checking its identity. No live table has been created by the assistant.
+
+超时或失败时，先对照私人进度日志与飞书实际结果，不自动重试或回滚创建操作。只有在真实已授权环境运行成功，才算完成真实空表验证；仓库测试使用模拟响应。可用 --new-base 创建临时空表，检查通过后按需运行显式写入自检，再核对 ID 并仅删除这张临时表。助手没有执行真实建表或删除。
+
+The explicit empty normalization is in src/lib/bitable.js: omitted items with total=0 or has_more=false normalize to []. This is followed by the same schema, pagination and snapshot checks as a populated table; an incomplete nonempty response remains an error.
+
+空表分支位于 src/lib/bitable.js：省略 items 但明确 total=0 或 has_more=false 的结果归一化为 []；字段及分页校验照常执行，不把不完整的非空响应当空表。
+
+## Navigation, capture and skip / 导航、收藏与跳过
+
+Clicking the icon opens Save this page plus Home / Collection / Settings. Settings is a separate #settings view; without a successful configured connection, the default options view is Settings. Explicit navigation to local collection/home remains available. Header navigation and interface language are shared across views. The Collection shows only unread, undeleted entries. Choose Read or Skip to remove an item from the unread list; Skip persists 阅读状态=跳过 and excludes reminders, preserving the record. A failed remote update preserves the local state. To restore a linked read/skipped item, set 阅读状态 to 待阅读 in Feishu and sync. Offline statuses remain locally stored and are uploaded when a connection is configured.
+
+点击图标打开“收藏当前页”和“首页 / 收藏 / 设置”菜单。设置是独立的 #settings 视图，未配置成功时默认进入该页，仍可主动导航到本机收藏或首页；页头共享导航与语言选择。收藏仅显示未读且未删除的内容；已读或跳过后退出列表。跳过同步为飞书阅读状态“跳过”，不删除记录、不进入提醒；远端失败时保留原本机状态。关联内容可在飞书改回“待阅读”再同步恢复显示；离线状态保存在本机，连接配置后上传。

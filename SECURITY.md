@@ -16,7 +16,7 @@ Local storage contains captures, snapshots, language, pinned connection identity
 
 ## Connection / 连接端
 
-The portable module verifies adapter identity and limits operations to the configured Bitable, eight creation fields, reading-status updates and optional conversation. The browser cannot select credentials, API paths, commands, delivery dates or arbitrary recipients. The Fetch handler authenticates requests independently of CORS and allows only the configured extension origin when an Origin header is present.
+The portable module verifies adapter identity and limits operations to the configured Feishu / Google table, eight creation fields, reading-status updates and optional conversation. The browser cannot select credentials, API paths, commands, delivery dates or arbitrary recipients. The Fetch handler authenticates requests independently of CORS and allows only the configured extension origin when an Origin header is present.
 
 模块限制账号、表格、字段和会话。浏览器不能指定凭证、任意 API、命令、发送日期或其他接收者。Fetch 处理器独立于 CORS 执行鉴权，并校验扩展来源。
 
@@ -34,6 +34,17 @@ Daily reminders require private durable receipts and exclusive processing across
 
 定时提醒依赖持久化记录和跨请求、任务的互斥。发送不改变阅读状态；不确定时保留 UUID，先核实会话再处理。
 
-Run `npm test` and `npm run security`. Tests cover offline capture, packaging, adapter/HTTP boundaries, synchronization, concurrency and delivery recovery with simulated Feishu operations. They do not log in, send real messages, validate a real host or certify a third-party integration.
+Run `npm test` and `npm run security`. Tests cover offline capture, packaging, adapter/HTTP boundaries, synchronization, concurrency and delivery recovery with simulated Feishu and Google operations. They do not log in, send real messages, validate a real host or certify a third-party integration.
 
 测试使用模拟操作，不登录、不发送真实消息，也不等于真实部署或第三方集成的安全认证。发布前保持私人域名、令牌及个人配置在 Git 之外；不要公开带实际连接地址的私人安装包。
+
+
+## Google and profile switching / Google 与类型切换
+
+Google credentials stay on the host. The reference reads a current private service-account file, verifies a JWT OAuth grant and binds client_email to connectionId. All token/Sheets URLs are fixed, redirects are rejected, bodies are bounded and errors are sanitized. The spreadsheet is shared with a dedicated service account; spreadsheets scope cannot isolate a tab, while the adapter restricts the configured spreadsheet/gid. Captures use literal string values; they are never installed as formulas. Row metadata is identity, not a secret or authorization boundary. Editors must preserve row structure; imported rows require explicit preparation.
+
+Google 私钥只保存在服务端，按调用读取私人文件，校验 OAuth 授权与账号绑定。接口地址固定、不跟随重定向、限制大小、脱敏错误。API scope 无法隔离单工作表，需只向专用账号分享必要文件，适配器另限制固定文件／gid。收藏写入字面字符串，不生成公式。行元数据是身份，不是授权或秘密；编辑者须维护完整行结构，导入行需显式 prepare。
+
+One reference host access key can authorize both preconfigured profiles for a trusted user. It is not multi-tenant isolation. Browser identity pinning prevents switching with an old cache; disconnect archives locally, clears local key/identity and does not revoke the host key, remove remote content or pause server reminders. Chrome archives retain the same privacy boundary and quota limits as other extension storage. The optional listener is manually started on loopback and must stay behind a TLS proxy; do not expose its internal port.
+
+一个参考服务密钥可访问该用户预先配置的两种表格，不是多租户隔离。取消关联归档本机资料并清除本机密钥和身份，不撤销服务端密钥、不删除远端内容、不暂停服务端提醒。归档仍受 Chrome 本地存储隐私边界与配额限制。可选服务入口手动启动并只监听回环，须置于 TLS 代理后，不公开内部端口。
