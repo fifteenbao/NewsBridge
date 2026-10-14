@@ -1,0 +1,14 @@
+{
+  "baseUrl": "https://connection.example.com/newsbridge/",
+  "extensionId": "",
+  "stateDir": "./state",
+  "connector": {
+    "connectionId": "app:cli_YOUR_APP_ID",
+    "baseToken": "YOUR_BITABLE_BASE_TOKEN",
+    "articleTableId": "tblYOUR_TABLE_ID",
+    "chatId": "",
+    "remindersEnabled": false,
+    "timeZone": "Asia/Shanghai",
+    "language": "en"
+  }
+}

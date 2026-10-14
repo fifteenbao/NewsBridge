@@ -6,9 +6,9 @@ NewsBridge 将浏览器收藏与飞书授权操作分开。接入已有工具即
 
 ## Adapter / 适配器
 
-Use [the adapter template](../examples/adapter.js) to bind these callbacks to your existing environment:
+The [runnable Feishu custom-app adapter](../examples/adapter.js) implements token acquisition, verified app identity and scoped API calls with native fetch. It is optional: existing tools can implement these same callbacks:
 
-使用模板，将以下函数绑定到现有环境：
+仓库提供可运行的飞书自建应用适配器，包括获取凭证、验证应用身份和调用固定接口；也可将以下接口绑定到已有工具，无需采用参考适配器。
 
 ```js
 const adapter = {
@@ -77,10 +77,10 @@ Expose the following authenticated POST endpoints (relative to `baseUrl`) in you
 
 | Path / 路径 | Request / 请求字段 | Result / 结果 |
 | --- | --- | --- |
-| `v1/health` | `{}` | `connected, capabilities, configuration` |
+| `v1/health` | `{}` | `connected, capabilities, configuration, schema` |
 | `v1/sync` | `{items: [...]}` | `enabled, base, created, bindings, articles, topics, notifications` |
 | `v1/read` | `{base, recordId, read}` | Status write acknowledged / 状态写入确认 |
-| `v1/preferences` | `{language: "en" or "zh"}` | Saved preferences / 保存偏好 |
+| `v1/preferences` | `{language: "en" or "zh", table?: "baseToken/tableId"}` | Saved preferences / 保存偏好 |
 | `v1/pending` | `{}` | `{pending: null or {...}}` |
 | `v1/resolve` | `{uuid, outcome: "sent" or "not-sent"}` | Delivery reconciliation / 发送结果确认 |
 
@@ -131,9 +131,9 @@ The supplied handler uses standard Request/Response objects, exact extension-ori
 
 此处理器不启动监听端口，直接挂载到已有路由。宿主负责真实鉴权、撤销密钥、TLS、超时、限流与跨实例锁。代理环境只能从可信路由配置恢复外部 URL，不信任任意转发头。
 
-Only `/v1/*` actions above are exposed. There is no HTTP daily-send endpoint, arbitrary API relay or shell-command endpoint. Error responses use `{ok: false, error}` without raw provider details. Inspect private host logs to diagnose an integration failure.
+Only `/v1/*` actions above are exposed. There is no HTTP daily-send endpoint, arbitrary API relay or shell-command endpoint. Error responses include `{ok: false, error, diagnostic}`. The browser renders only allowlisted diagnostic codes and metadata, never arbitrary provider messages. Use the reference to correlate the browser error with `onDiagnostic` output.
 
-接口不提供定时发送入口、任意 API 转发或命令执行。错误不得包含原始平台详情，排错查看宿主私有日志。
+接口不提供定时发送入口、任意 API 转发或命令执行。错误包含安全的 diagnostic（编号、步骤、数字平台错误码、引用编号），页面与 onDiagnostic 私有日志使用同一个引用编号；不记录令牌、原始响应或任意异常文本。
 
 ## Scheduling and delivery / 调度与发送
 
@@ -144,3 +144,38 @@ Register `connector.daily()` in the user's existing scheduler for local 10:00. R
 Before a send, the module persists the UUID and exact content, then calls the adapter. It marks receipts only on a confirmed message ID. An uncertain result retries the same UUID within the existing one-hour window; later or changed batches pause for manual reconciliation. Adapters must preserve the provider's UUID deduplication behavior. Never mark articles read just because they were delivered.
 
 先持久化请求，再调用发送；只有明确的消息 ID 才确认送达。不确定时按同一 UUID 重试，超过窗口或素材变化则暂停。适配器必须保留平台去重行为，不能因发送成功就标记已读。
+
+## Preflight and diagnostics / 预检与诊断
+
+`health` reads field metadata and checks all eight required names and types before returning `schema: {valid: true, checkedFields: 8}`. Sync repeats this check before creating records. A read-only health check establishes schema/read access, **not proof of write permission**; capabilities are adapter declarations. Verify a reversible write with authorized test content separately. Missing or wrong types return `SCHEMA_INVALID` with every affected field, expected numeric types and actual type (null means missing or ambiguous). No fields are automatically changed.
+
+health 会读取字段元数据并一次报告八个字段的缺失或类型错误；同步在写入前再次检查。只读预检不等于已验证写权限，写权限需用获准的测试记录单独确认。不会自动改表头或字段类型。
+
+Supply `onDiagnostic(diagnostic)` to createConnector. It receives only code, stage, a generated reference, optional numeric providerCode/httpStatus and known schema fields. Default core callback is a no-op; the reference host writes sanitized JSON to stderr. Never add raw exception objects or credentials to this callback. An adapter may throw `DiagnosticError` from `src/lib/diagnostics.js`; generic exceptions become API_TRANSPORT/AUTH_VERIFY. Unsuccessful `{code, data}` results preserve only a numeric code. STATE_LOAD/STATE_SAVE identify persistence failures; LOCK_BUSY identifies contention. Pending-state validation failures also stop without resetting receipts. Delivery failures retain the pending UUID.
+
+通过 onDiagnostic 接入现有日志。核心默认不写日志，参考宿主输出已脱敏 JSON。适配器可抛 DiagnosticError；普通异常隐藏原始内容。STATE_LOAD/STATE_SAVE 分别检查状态文件格式、权限或磁盘；LOCK_BUSY 检查持锁进程。不得通过清空状态解决 pending 失败，否则会丢失发送去重记录。
+
+`extensionId` can be empty during setup. The handler then rejects every request with an Origin and every CORS preflight, but still permits authenticated non-browser requests without Origin. This is setup behavior, not authentication bypass: every operation requires its Bearer key. Register the actual 32-character Chrome ID and recreate the handler before connecting Chrome. A supplied malformed ID is still an error. Origin is browser isolation, not a secret; non-browser callers can omit/spoof it and must be authenticated.
+
+安装前 extensionId 可以留空，此时拒绝浏览器 Origin 与预检，保留必须鉴权的无 Origin 诊断。安装后填写真实扩展 ID 并重建处理器。Origin 不能替代专用密钥。
+
+## Eight-field codec / 八字段编解码
+
+The adapter passes API field values through; the core writes plain strings to text fields and decodes returned rich-text arrays. Do not JSON-stringify text arrays or wrap the entire fields object in a string. [Feishu record creation documentation](https://open.feishu.cn/document/server-docs/docs/bitable-v1/app-table-record/create) defines the wire values; the following table specifies NewsBridge's mapping.
+
+适配器保留 API 字段值结构，由核心将文本写为字符串、将返回的富文本数组提取为纯文本。不要把富文本数组或 fields 对象再次 JSON 字符串化。下表为本项目实际规则：
+
+| Field / 字段 | Accepted type / 允许类型 | New capture writes / 新收藏写入 | Read normalization / 读取 |
+| --- | --- | --- | --- |
+| 标题 | 1 text / 文本 | title string (URL fallback) / 标题字符串 | string or concatenate array text / 字符串或数组 text 拼接 |
+| 链接 | 15 URL, 1 text | 15: `{text: title, link: url}`; 1: URL string | object.link or text; unsafe URL becomes empty / 不安全链接置空 |
+| 内容 | 1 text / 文本 | content string, default empty / 默认空 | string or rich-text text / 富文本提取纯文本 |
+| 类别 | 3 single, 4 multiple / 单选、多选 | 3: `"待分类"`; 4: `["待分类"]` | string or joined options with 、 / 多选以顿号拼接 |
+| 阅读状态 | 3 single / 单选 | `"待阅读"` or `"已读"` | 待阅读、阅读中 → read=false; all others → true, excluded from unread reminders / 其他状态不提醒 |
+| 推荐指数 | 2 number, 20 rating / 数字、评分 | omitted, no invented rating / 不自动评分 | number or null / 数字或空 |
+| 笔记 | 1 text / 文本 | empty string / 空字符串 | string or rich-text text; formatting not copied / 不复制排版 |
+| 时间 | 5 date / 日期 | Unix milliseconds from savedAt / 毫秒时间戳 | milliseconds or null; adapters must normalize custom date formats / 自定义日期须先转换 |
+
+Text reads accept strings or arrays containing strings / `{text: "..."}`; other segments contribute no text. Text is capped at 64,000 characters. Existing Feishu content and notes are never rewritten from a stale browser copy; explicit read changes update only 阅读状态. Health validates numeric field types; option permissions, advanced table access rules and write authorization still need separate verification. Wiki links require resolution to a direct base/table by the operator; the extension does not guess wiki node tokens.
+
+读取文本允许字符串或含字符串、text 对象的数组，最多 64,000 字符；不识别的富文本片段忽略。已有内容与笔记以飞书为准，状态修改只写阅读状态。预检不保证单选选项变更权限或高级权限可写。知识库链接应由连接配置方解析为直接 base/table 链接。

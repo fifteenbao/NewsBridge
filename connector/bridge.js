@@ -1,3 +1,4 @@
+import { DiagnosticError } from '../src/lib/diagnostics.js';
 import { SafeError } from '../src/lib/security.js';
 import { createKnowledgeService } from '../src/lib/bitable.js';
 import { createReadingService } from '../src/lib/notifications.js';
@@ -29,7 +30,8 @@ function validateScope(scope, config) {
 export function createBridge({ config, adapter, store, now = () => Date.now() }) {
   const client = createAdapterClient(config, adapter);
   const key = scopeKey(config);
-  const reading = createReadingService({ knowledge: createKnowledgeService(client.request), config, request: client.request, store, now });
+  const knowledge = createKnowledgeService(client.request);
+  const reading = createReadingService({ knowledge, config, request: client.request, store, now });
   return async (action, payload = {}) => {
     if (!['health', 'sync', 'read', 'pending', 'resolve'].includes(action)) throw new SafeError('Unsupported connection operation.');
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new SafeError('Invalid connection request.');
@@ -37,11 +39,12 @@ export function createBridge({ config, adapter, store, now = () => Date.now() })
       throw new SafeError('The connection identity or table differs from this collection. Use a separate Chrome profile rather than transferring cached reading data.');
     }
     await client.verifyIdentity();
-    if (action === 'health') return { ok: true, connected: true, configuration: {
+    if (action === 'health') return { ok: true, connected: true, schema: await knowledge.preflight(config), configuration: {
       baseToken: config.baseToken, articleTableId: config.articleTableId, chatId: config.chatId,
     } };
     const state = await store.load();
-    if (state.scopes[key]) validateScope(state.scopes[key], config);
+    try { if (state.scopes[key]) validateScope(state.scopes[key], config); }
+    catch { throw new DiagnosticError('STATE_LOAD', 'state.load'); }
     if (action === 'pending') return { ok: true, pending: state.scopes[key]?.pending || null };
     if (action === 'resolve') {
       const scope = state.scopes[key];

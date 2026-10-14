@@ -1,3 +1,4 @@
+import { parseTableUrl } from './table-url.js';
 import { SafeError, isSafeArticleUrl } from './security.js';
 import { callKnowledge } from './knowledge.js';
 import { callConnection, validAccessKey } from './connection.js';
@@ -42,11 +43,11 @@ export async function deleteItem(id) {
 }
 export async function getSettings() {
   const { settings = {} } = await chrome.storage.local.get(SETTINGS_KEY);
-  return { language: settings.language === 'zh' ? 'zh' : 'en' };
+  return { language: settings.language === 'zh' ? 'zh' : 'en', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}) };
 }
 export function validateSettings(settings) {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new SafeError('Invalid settings.');
-  return { language: settings.language === 'zh' ? 'zh' : 'en' };
+  return { language: settings.language === 'zh' ? 'zh' : 'en', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}) };
 }
 export async function setSettings(settings) {
   const next = validateSettings(settings);
@@ -54,7 +55,7 @@ export async function setSettings(settings) {
   if (settings.connectionAccessKey) {
     if (!validAccessKey(settings.connectionAccessKey)) throw new SafeError('Invalid connection access key.');
   }
-  await callConnection('preferences', { language: next.language }, { accessKey: settings.connectionAccessKey });
+  await callConnection('preferences', { language: next.language, ...(next.tableUrl ? { table: parseTableUrl(next.tableUrl).base } : {}) }, { accessKey: settings.connectionAccessKey });
   if (settings.connectionAccessKey) await chrome.storage.local.set({ connectionAccessKey: settings.connectionAccessKey, connectionBaseUrl: CONNECTION_BASE_URL });
   await chrome.storage.local.set({ [SETTINGS_KEY]: next });
   return next;

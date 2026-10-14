@@ -1,3 +1,4 @@
+import { DiagnosticError } from './diagnostics.js';
 import { SafeError, isSafeArticleUrl } from './security.js';
 // Feishu owns notes, topics and status. Upload only new captures; never overwrite
 // an existing record with the browser's older copy.
@@ -26,6 +27,18 @@ export function validateConfig(config = {}) {
   if (config.schema && !['briefing', 'legacy'].includes(config.schema)) throw new SafeError('schema 只支持 briefing 或 legacy。');
   if (config.schema === 'legacy' && !config.topicTableId) throw new SafeError('旧版双表模式需要 topicTableId。');
   return config;
+}
+
+export function inspectArticleFields(fields) {
+  const issues = [];
+  for (const [name, type] of Object.entries(ARTICLE_FIELDS)) {
+    const expected = name === '链接' ? [15, 1] : name === '类别' ? [3, 4] : name === '推荐指数' ? [2, 20] : [type];
+    const matches = fields.filter(f => f.field_name === name);
+    const actual = matches.length === 1 && Number.isSafeInteger(matches[0].type) ? matches[0].type : null;
+    if (!expected.includes(actual)) issues.push({ name, expected, actual });
+  }
+  if (issues.length) throw new DiagnosticError('SCHEMA_INVALID', 'fields', { fields: issues });
+  return { valid: true, checkedFields: 8 };
 }
 
 export function checkFields(fields, expected, label, topicTableId) {
@@ -90,7 +103,8 @@ export function createKnowledgeService(request) {
     const articlesPath = pathFor(config, config.articleTableId);
     const legacy = config.schema === 'legacy' || (!config.schema && !!config.topicTableId);
     const articleFields = await list(`${articlesPath}/fields`);
-    checkFields(articleFields, legacy ? LEGACY_ARTICLE_FIELDS : ARTICLE_FIELDS, '素材表', config.topicTableId);
+    if (legacy) checkFields(articleFields, LEGACY_ARTICLE_FIELDS, '素材表', config.topicTableId);
+    else inspectArticleFields(articleFields);
     const topicsPath = legacy ? pathFor(config, config.topicTableId) : null;
     if (legacy) checkFields(await list(`${topicsPath}/fields`), TOPIC_FIELDS, '主题表');
     const records = await list(`${articlesPath}/records`);
@@ -129,5 +143,6 @@ export function createKnowledgeService(request) {
       synthesis: textOf(r.fields?.阶段结论), next: textOf(r.fields?.下一步),
     })) };
   }
-  return { sync: body => serial(() => syncNow(body)) };
+  return { sync: body => serial(() => syncNow(body)),
+    preflight: async config => { validateConfig(config); return inspectArticleFields(await list(`${pathFor(config, config.articleTableId)}/fields`)); } };
 }

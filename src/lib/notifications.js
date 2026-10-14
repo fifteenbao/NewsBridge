@@ -1,3 +1,4 @@
+import { cleanDiagnostic } from './diagnostics.js';
 import { SafeError, safeErrorMessage, isSafeArticleUrl } from './security.js';
 import { nextBatch } from './batch.js';
 import { buildReadingMessage } from './messages.js';
@@ -23,6 +24,7 @@ export function createReadingService({ knowledge, config, request, store, now = 
     let result = await knowledge.sync({ config, items });
     let scope;
     const deliveries = [];
+    let notificationDiagnostic = null;
     let notificationError = null;
     let configured = false;
     try {
@@ -89,8 +91,8 @@ export function createReadingService({ knowledge, config, request, store, now = 
           deliveries.push({ messageId, recordIds: pending.recordIds });
         }
       }
-    } catch (error) { notificationError = safeErrorMessage(error); }
-    return { ...result, notifications: { configured, deliveries, sent: scope?.sent || {}, error: notificationError } };
+    } catch (error) { notificationError = safeErrorMessage(error); notificationDiagnostic = cleanDiagnostic(error?.diagnostic); }
+    return { ...result, notifications: { configured, deliveries, sent: scope?.sent || {}, error: notificationError, diagnostic: notificationDiagnostic } };
   }
 
   function enqueue(work) {

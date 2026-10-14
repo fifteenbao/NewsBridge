@@ -41,7 +41,8 @@ async function initializeAlarms() {
   if (!(await chrome.alarms.get('knowledge-sync'))) await chrome.alarms.create('knowledge-sync', { periodInMinutes: 15 });
   await chrome.alarms.clear('daily-reading');
 }
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details = {}) => {
+  if (details.reason === 'install') chrome.tabs.create({ url: chrome.runtime.getURL('src/options.html') + '#settings' });
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({ id: 'open-list', title: 'Reading list', contexts: ['action'] });
     chrome.contextMenus.create({ id: 'open-settings', title: 'Settings', contexts: ['action'] });

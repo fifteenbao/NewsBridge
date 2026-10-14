@@ -1,3 +1,4 @@
+import { cleanDiagnostic, formatDiagnostic } from './diagnostics.js';
 import { CONNECTION_BASE_URL } from './connection-config.js';
 import { SafeError, readJsonResponse } from './security.js';
 import { parseConnectionUrl } from './connection-url.js';
@@ -30,7 +31,7 @@ export function createConnectionClient({ baseUrl = CONNECTION_BASE_URL, storage,
     } catch { throw new SafeError('Connection failed or timed out. Check its availability and HTTPS configuration.'); }
     if ([401, 403].includes(response.status)) throw new SafeError('Connection denied access. Check the key and extension ID.');
     const result = await readJsonResponse(response, 20 * 1024 * 1024);
-    if (!response.ok || result.ok !== true) throw new SafeError('Connection operation failed. Check its authorization, permissions and private logs.');
+    if (!response.ok || result.ok !== true) throw new SafeError(cleanDiagnostic(result.diagnostic) ? formatDiagnostic(result.diagnostic) : 'Connection operation failed. Check its authorization, permissions and private logs.');
     if (result.protocolVersion !== 1 || !validIdentity(result.identity)) throw new SafeError('Unsupported or invalid connection response.');
     if (identity && !sameIdentity(identity, result.identity)) throw new SafeError('Connection account or table differs from this collection.');
     if (action === 'health' && (result.connected !== true || result.capabilities?.tableRead !== true || result.capabilities?.tableWrite !== true)) {

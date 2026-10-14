@@ -1,3 +1,4 @@
+import { cleanDiagnostic } from '../src/lib/diagnostics.js';
 import { SafeError, safeErrorMessage, readJsonResponse } from '../src/lib/security.js';
 
 import { parseConnectionUrl } from '../src/lib/connection-url.js';
@@ -6,10 +7,10 @@ import { parseConnectionUrl } from '../src/lib/connection-url.js';
 // It creates no listener, process, credentials, deployment or scheduler.
 export function createHttpHandler({ baseUrl, extensionId, authenticate, connector, maxBytes = 20 * 1024 * 1024 }) {
   const target = parseConnectionUrl(baseUrl);
-  if (!/^[a-p]{32}$/.test(extensionId || '') || typeof authenticate !== 'function' || typeof connector?.dispatch !== 'function') {
+  if ((extensionId && !/^[a-p]{32}$/.test(extensionId)) || typeof authenticate !== 'function' || typeof connector?.dispatch !== 'function') {
     throw new SafeError('Configure an HTTPS base URL, extension ID and authentication verifier.');
   }
-  const expectedOrigin = `chrome-extension://${extensionId}`;
+  const expectedOrigin = extensionId ? `chrome-extension://${extensionId}` : null;
   const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences']);
   let active = 0;
   return async request => {
@@ -24,9 +25,9 @@ export function createHttpHandler({ baseUrl, extensionId, authenticate, connecto
     if (originHeader && originHeader !== expectedOrigin) return send(403, { ok: false, error: 'Untrusted extension.' });
     const action = url.pathname.startsWith(target.apiPath) ? url.pathname.slice(target.apiPath.length) : '';
     if (!actions.has(action)) return send(404, { ok: false, error: 'Unknown operation.' });
-    if (originHeader === expectedOrigin) { headers['Access-Control-Allow-Origin'] = originHeader; headers.Vary = 'Origin'; }
+    if (expectedOrigin && originHeader === expectedOrigin) { headers['Access-Control-Allow-Origin'] = originHeader; headers.Vary = 'Origin'; }
     if (request.method === 'OPTIONS') {
-      if (originHeader !== expectedOrigin || request.headers.get('Access-Control-Request-Method') !== 'POST' ||
+      if (!expectedOrigin || originHeader !== expectedOrigin || request.headers.get('Access-Control-Request-Method') !== 'POST' ||
           (request.headers.get('Access-Control-Request-Headers') || '').split(',').some(key => key.trim() && !['authorization', 'content-type'].includes(key.trim().toLowerCase()))) {
         return send(403, { ok: false, error: 'Invalid preflight.' });
       }
@@ -45,7 +46,7 @@ export function createHttpHandler({ baseUrl, extensionId, authenticate, connecto
     try {
       const body = await readJsonResponse(request, maxBytes);
       return send(200, await connector.dispatch(action, body));
-    } catch (error) { return send(400, { ok: false, error: safeErrorMessage(error) }); }
+    } catch (error) { return send(400, { ok: false, error: safeErrorMessage(error), diagnostic: cleanDiagnostic(error?.diagnostic) }); }
     finally { active--; }
   };
 }

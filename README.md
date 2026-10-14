@@ -14,6 +14,10 @@ Save → organize → read or watch → take notes → review related material.
 
 Use **Google Chrome 106 or later**. NewsBridge is installed by loading an unpacked extension; you do not need to configure Feishu before trying local capture.
 
+### Connection settings
+
+Settings opens on first install. Later, **right-click the NewsBridge icon → Settings**. Paste your **Feishu Bitable link** (direct `/base/…?table=tbl…` link) and the connection's dedicated access key, then select **Save settings / Check connection**. The page checks table identity and all eight field types and shows actionable diagnostics. A table link identifies the destination; it does not authorize API access. The connected build and host authorization are still required; offline builds only save the link locally. A different table cannot silently replace an existing collection. See [startup order and runnable reference](SETUP.md#runnable-reference-and-startup-order--可运行参考与启动顺序).
+
 ### Download the extension or source
 
 Choose one of these options:
@@ -78,7 +82,7 @@ An agent can inspect your existing environment, implement the contract using an 
 - [Connection contract](docs/CONNECTION.md): adapter operations, authentication and scheduling.
 - [Agent setup instructions](docs/AGENT-SETUP.md): what an agent may configure and how to verify it.
 
-The current browser transport is an authenticated HTTPS interface. Existing tools must expose that interface, directly or through an adapter. The repository includes a portable connection module and an adapter template, not preconfigured integrations with third-party products. No new hosting is required when an existing environment can provide the interface.
+The current browser transport is an authenticated HTTPS interface. Existing tools must expose that interface, directly or through an adapter. The repository includes a portable connection module and a runnable Feishu custom-app adapter, not preconfigured integrations with third-party products. No new hosting is required when an existing environment can provide the interface.
 
 ## Reading table
 

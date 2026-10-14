@@ -23,3 +23,7 @@ Read [README](../README.md), [SETUP](../SETUP.md), and [the connection contract]
 6. 用已授权的临时素材验证状态同步、去重、笔记保留与删除处理；不擅自发送测试消息。
 7. 确认现有调度、共享锁和持久化存储后才启用每日提醒。
 8. 交付安装路径与验证结果，明确模拟测试和真实验证的区别。
+
+Use the optional runnable examples and ordered initialization in [SETUP.md](../SETUP.md). Never read late-loaded credentials into module-level constants. Run schema preflight, preserve structured diagnostics and verify the shared lock across processes. Empty extensionId allows authenticated setup checks only; register the installed extension before browser use. A pasted table URL must match the host's authorized table; it cannot grant table access or rebind an existing collection.
+
+参考 SETUP 的可执行步骤：先初始化状态和密钥，再加载凭证、预检字段、安装扩展及登记 ID。延迟注入的凭证不得在模块级提前缓存；保留诊断编号并验证跨进程锁。设置页链接不能代替飞书授权，也不能静默重绑已有资料库。

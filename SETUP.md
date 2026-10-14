@@ -69,3 +69,30 @@ For reminders, verify message access to the configured chat, durable receipt sto
 If a send is uncertain, inspect the conversation and resolve it in Settings. Do not erase receipts to force a retry. Back up private state using your existing environment's tools.
 
 发送不确定时先核实会话，再在设置中确认，不清空记录强行重试。使用已有环境的工具备份私有状态。
+
+## Runnable reference and startup order / 可运行参考与启动顺序
+
+These optional examples use Node 22+ and a POSIX local filesystem. They do not deploy anything or start a listener. The custom-app adapter is one supported reference route, not a dependency imposed on other agents/tools. It uses [Feishu's custom-app tenant token API](https://open.feishu.cn/document/server-docs/authentication-management/access-token/tenant_access_token_internal). Have an authorized app, table read/write scopes and table access ready; message delivery additionally needs bot/message permissions and target-chat membership.
+
+参考实现需要 Node 22+、POSIX 本机文件系统，不会部署或启动监听服务。自建应用只是可运行的参考方式，不限制其他工具实现协议。准备已授权应用、表格读写权限及目标表格访问权；提醒另需机器人发消息权限与目标会话成员资格。
+
+1. Copy `examples/host.example.json` to Git-ignored `private/host.json`. Set baseUrl (your HTTPS base path), connector baseToken/articleTableId and `connectionId: "app:<your app ID>"`. Keep reminders disabled. stateDir is resolved **relative to this config file**, so `./state` means `private/state`. Keep that directory and its parents under a trusted OS account; never put it on a shared network filesystem or inside the publicly served directory.
+2. Run `node examples/run.mjs init private/host.json`. This explicitly creates a 0700 state directory, 0600 state.json and random 0600 access.key. Re-running preserves existing state/key; invalid existing data fails. Do not regenerate or delete receipts during ordinary restarts.
+3. Supply FEISHU_APP_ID and FEISHU_APP_SECRET through the host's existing secret mechanism. Do not paste secrets into commands, source or Chrome. `getCredentials()` reads at call time, after environment setup, and may be replaced with your secret manager callback. Module-level `const token = process.env...` captures the old value if imports run before configuration, and also misses rotation. It is not inherently invalid with environment populated before process startup, but this reference deliberately avoids that ordering dependency. No automatic dotenv loader is included.
+4. Run `node examples/run.mjs check private/host.json`. This verifies current app identity and all eight field types, without sending or writing table records. Run `node examples/run.mjs pending private/host.json` for a safe pending-state check. Diagnose failures by stage/code/reference. `npm run doctor` remains an offline format check.
+5. In your **existing HTTPS host**, call `createHost(await loadHostConfig(path))` from `examples/host.js` and mount its handleRequest. Preserve the configured external URL and prefix. The host still owns TLS, timeouts and admission limits; these examples supply no standalone web server. An empty extensionId permits startup and authenticated non-browser checks while blocking Chrome access.
+6. Build with `npm run build -- --config private/host.json`, extract the connected ZIP and load its folder at chrome://extensions. Copy Chrome's real ID into private/host.json and restart/recreate the host handler. Recheck the ID if Chrome reports access denied; do not replace it with a wildcard.
+7. The extension opens Settings on first installation; otherwise right-click its icon → Settings. Paste the direct Feishu table URL and securely copy the **connection access.key**, not App Secret/Feishu token. Save/check verifies the pasted target matches the service's authorized table before saving connected preferences. The offline package saves the link locally but cannot connect using a table link alone. Then sync and verify a permitted test capture and read-status update.
+8. Only if reminders are requested, configure chatId and the existing 10:00 scheduler, then enable remindersEnabled. The explicit command `node examples/run.mjs daily private/host.json` **can send messages**. It is not a health check. All browser and scheduler processes must use the same stateDir and exclusive lock.
+
+中文顺序：①复制私人配置并设置 HTTPS 地址、应用身份和表格 ID；stateDir 相对于配置文件。②运行 init 创建状态文件和专用 access.key。③通过现有密钥管理注入环境，适配器在调用时读取，避免模块导入早于环境加载。④运行 check 预检，pending 排查待确认发送。⑤将参考宿主挂载到已有 HTTPS 环境，extensionId 可暂留空但此时 Chrome 被拒绝。⑥打包、安装扩展、填真实 ID 并重启处理器。⑦设置页粘贴多维表格直接链接与连接专用密钥，保存校验、再同步。⑧有需要才启用定时提醒；daily 会真实发送，不能用于健康检查。
+
+### Persistence and shared lock / 持久化与共享锁
+
+[examples/file-state.js](examples/file-state.js) provides exclusive file creation for cross-process locking on a **single host/local filesystem**, private files, isolated JSON loads, fsync + atomic rename + directory fsync on save, and timing-safe access-key checks. Missing state is an error until explicit init. Lock contention fails with LOCK_BUSY rather than running concurrently. Crashed owners leave state.lock: **stop every process using this stateDir and confirm no external operation remains active before manually removing it**. Never steal a lock just because it is old; pending-message reconciliation must survive recovery. Unexpected temporary files may remain after a crash; preserve state and inspect before cleanup. Back up state.json with the owning processes stopped or under the same lock.
+
+参考锁仅适用于单机本地文件系统；多机、网络盘或无共享磁盘实例必须换成对应环境的共享事务/锁。锁冲突返回 LOCK_BUSY，不自动超时抢锁。进程崩溃后，停止所有相关进程并确认外部操作已结束，才能手动移除 state.lock；不能按文件年龄抢锁，更不能清空发送状态。文件保存使用同步落盘、原子替换和目录同步；备份也须停机或持同一把锁。不要在持锁函数内递归调用 connector。
+
+These examples are exercised with mocked Feishu responses and real child-process lock tests. They are not evidence of a live deployment or app permission grant. The reference adapter exchanges credentials per call for clarity; production adapters may cache tokens with identity-scoped expiration and refresh, keeping credentials entirely on the host.
+
+验证覆盖飞书模拟响应与真实子进程锁冲突，未连接真实账号验证。参考适配器每次换取凭证，生产实现可按身份安全缓存及刷新；飞书凭证始终留在连接端。

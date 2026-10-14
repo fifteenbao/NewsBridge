@@ -1,3 +1,4 @@
+import { parseTableUrl } from './lib/table-url.js';
 import { CONNECTION_BASE_URL } from './lib/connection-config.js';
 import { isSafeArticleUrl } from './lib/security.js';
 // Dashboard reads cached data; the background worker serializes all mutations.
@@ -150,8 +151,16 @@ async function mutate(message) {
 }
 function fillSettings(settings) {
   document.getElementById('language').value = settings.language;
+  document.getElementById('tableUrl').value = settings.tableUrl || '';
 }
-function collectSettings() { return { language: document.getElementById('language').value, connectionAccessKey: document.getElementById('connectionAccessKey').value.trim() }; }
+function collectSettings() {
+  const input = document.getElementById('tableUrl');
+  const error = document.getElementById('table-url-error');
+  input.removeAttribute('aria-invalid'); error.textContent = '';
+  let tableUrl = '';
+  try { tableUrl = input.value.trim() ? parseTableUrl(input.value.trim()).url : ''; }
+  catch (failure) { input.setAttribute('aria-invalid', 'true'); error.textContent = failure.message; input.focus(); throw failure; }
+  return { tableUrl, language: document.getElementById('language').value, connectionAccessKey: document.getElementById('connectionAccessKey').value.trim() }; }
 async function showSyncStatus() {
   const { knowledgeSync } = await chrome.storage.local.get('knowledgeSync');
   document.getElementById('sync-status').textContent = knowledgeSync?.error || '';
@@ -160,7 +169,7 @@ async function showSyncStatus() {
 let pending = null;
 async function showConnection() {
   const status = await mutate({ type: 'CONNECTION_STATUS' });
-  document.getElementById('auth-status').textContent = status.connected ? `Connected to ${CONNECTION_BASE_URL}; connection identity verified.` : 'Local collection mode. An existing connection can enable Feishu sync.';
+  document.getElementById('auth-status').textContent = status.connected ? `Connected to ${CONNECTION_BASE_URL}; connection identity and eight table fields verified.` : 'Local collection mode. Your table link is saved locally; a configured connection build and its access key are required for Feishu sync.';
   for (const key of ['baseToken', 'articleTableId', 'chatId']) document.getElementById(key).value = status.configuration?.[key] || '';
   if (status.configuration?.language) document.getElementById('language').value = status.configuration.language;
   document.getElementById('schedule-note').textContent = status.configuration?.remindersEnabled ? `Your connected tool schedules unread reminders at 10:00 (${status.configuration.timeZone}). Sending does not mark items read.` : 'Daily reminders are not enabled. Your connected tool can schedule them.';
@@ -173,7 +182,13 @@ function bindAction(id, action) {
   button.addEventListener('click', async () => {
     button.disabled = true;
     try { await action(); await showConnection(); await showSyncStatus(); }
-    catch (error) { document.getElementById('sync-status').textContent = error.message; }
+    catch (error) {
+      document.getElementById('sync-status').textContent = error.message;
+      if (error.message.includes('TABLE_MISMATCH')) {
+        const input = document.getElementById('tableUrl'); input.setAttribute('aria-invalid', 'true');
+        document.getElementById('table-url-error').textContent = error.message; input.focus();
+      }
+    }
     finally { button.disabled = false; }
   });
 }
@@ -199,7 +214,10 @@ async function init() {
     document.getElementById('connectionAccessKey').value = '';
     flashSaved();
   });
-  bindAction('check-connection', async () => {});
+  bindAction('check-connection', async () => {
+    const result = await mutate({ type: 'SAVE_SETTINGS', settings: collectSettings() });
+    fillSettings(result.settings); document.getElementById('connectionAccessKey').value = '';
+  });
   bindAction('sync', () => mutate({ type: 'SYNC' }));
   for (const [id, outcome] of [['confirm-sent', 'sent'], ['confirm-not-sent', 'not-sent']]) {
     bindAction(id, () => mutate({ type: 'RESOLVE_PENDING', uuid: pending?.id, outcome }));
@@ -217,7 +235,7 @@ async function init() {
   // tab is open.
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.items) renderList();
-    if (changes.knowledgeSync) { showSyncStatus(); showConnection().catch(() => {}); }
+    if (changes.knowledgeSync) { showSyncStatus(); showConnection().catch(error => { document.getElementById('auth-status').textContent = error.message; }); }
   });
 }
 

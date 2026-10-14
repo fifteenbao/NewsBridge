@@ -1,3 +1,4 @@
+import { DiagnosticError } from '../src/lib/diagnostics.js';
 import { SafeError } from '../src/lib/security.js';
 import { validateFeishuOperation } from '../src/lib/api-policy.js';
 
@@ -11,7 +12,7 @@ export function createAdapterClient(config, adapter) {
     // The adapter must derive this stable identity from verified credentials,
     // not echo the requested configuration or browser payload.
     let identity;
-    try { identity = await adapter.getIdentity(); } catch { throw new SafeError('Connection authorization could not be verified.'); }
+    try { identity = await adapter.getIdentity(); } catch (error) { if (error instanceof DiagnosticError) throw error; throw new DiagnosticError('AUTH_VERIFY', 'identity'); }
     if (identity?.connectionId !== config.connectionId) throw new SafeError('Connection identity does not match the configured account.');
   }
   return {
@@ -19,10 +20,11 @@ export function createAdapterClient(config, adapter) {
     request: async (method, path, options) => {
       validateFeishuOperation(config, method, path, options);
       await verifyIdentity();
+      const stage = path.endsWith('/fields') ? 'fields' : path.endsWith('/messages') ? 'messages.send' : method === 'GET' ? 'records.list' : method === 'PUT' ? 'records.update' : 'records.create';
       let result;
-      try { result = await adapter.request(method, path, options); } catch { throw new SafeError('The connection operation failed. Check authorization and permissions.'); }
+      try { result = await adapter.request(method, path, options); } catch (error) { if (error instanceof DiagnosticError) throw error; throw new DiagnosticError('API_TRANSPORT', stage); }
       if (!result || result.code !== 0 || !result.data || typeof result.data !== 'object' || Array.isArray(result.data)) {
-        throw new SafeError('The adapter returned an invalid or unsuccessful response.');
+        throw new DiagnosticError(Number.isSafeInteger(result?.code) && result.code !== 0 ? 'API_REJECTED' : 'API_RESPONSE', stage, { providerCode: result?.code });
       }
       return result;
     },

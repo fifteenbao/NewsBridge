@@ -17,7 +17,7 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
   };
   t.after(() => Object.assign(globalThis, original));
   const local = { settings: { language: 'en' }, connectionAccessKey: 't'.repeat(43) }, session = {};
-  const alarms = new Map(), badges = [], titles = [];
+  const alarms = new Map(), badges = [], titles = [], opened = [];
   globalThis.chrome = {
     storage: { local: area(local), session: area(session) },
     runtime: { id: 'test', getURL: path => `chrome-extension://test/${path}`,
@@ -27,7 +27,7 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
         scheduledTime: info.when || time + info.periodInMinutes * 60000, ...info }) },
     action: { onClicked: event(), setTitle: async value => titles.push(value.title), setBadgeText: async value => badges.push(value.text), setBadgeBackgroundColor: async () => {} },
     contextMenus: { onClicked: event(), removeAll: callback => callback(), create: () => {} },
-    tabs: { create: async () => {} },
+    tabs: { create: async value => opened.push(value.url) },
   };
   const f = fixture({ clock: () => time });
   const { records, sends, runtime } = f;
@@ -56,6 +56,15 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
     assert.equal(handler({ type: 'SYNC' }, sender, () => { replied = true; }), undefined);
     assert.equal(replied, false);
   }
+  chrome.runtime.onInstalled.emit({ reason: 'install' }); await drain();
+  assert.equal(opened.at(-1), chrome.runtime.getURL('src/options.html') + '#settings');
+  const saveSettings = settings => new Promise(resolve => chrome.runtime.onMessage.emit({ type: 'SAVE_SETTINGS', settings },
+    { id: 'test', frameId: 0, url: chrome.runtime.getURL('src/options.html') }, resolve));
+  assert.equal((await saveSettings({ language: 'en', tableUrl: 'https://workspace.feishu.cn/base/baseTest?table=tblTest&view=vewTest' })).ok, true);
+  assert.equal(local.settings.tableUrl, 'https://workspace.feishu.cn/base/baseTest?table=tblTest');
+  const previousSettings = structuredClone(local.settings);
+  assert.equal((await saveSettings({ language: 'zh', tableUrl: 'https://workspace.feishu.cn/base/baseOther?table=tblOther' })).ok, false);
+  assert.deepEqual(local.settings, previousSettings);
   chrome.runtime.onStartup.emit(); await drain();
   assert.equal(sends.length, 0);
   assert.equal(alarms.has('daily-reading'), false);
