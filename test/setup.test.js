@@ -23,7 +23,7 @@ test('sync/pending failures reach browser and diagnostic callback without raw se
       store: { load: async () => { throw new Error('private-token'); }, save: async () => {} },
     } : { adapter: { ...f.adapter, request: async () => ({ code: 1254015, msg: 'private-token' }) } }) });
     const handle = createHttpHandler({ baseUrl, authenticate: async () => true, connector: runtime });
-    const call = createConnectionClient({ baseUrl, storage: area({ connectionAccessKey: key }), fetchImpl: (url, options) => handle(new Request(url, options)) });
+    const call = createConnectionClient({ authentication: 'bearer', baseUrl, storage: area({ connectionAccessKey: key }), fetchImpl: (url, options) => handle(new Request(url, options)) });
     await assert.rejects(call(action), error => {
       assert.match(error.message, action === 'sync' ? /API_REJECTED; sync.fields; provider=1254015/ : /STATE_LOAD; pending.state.load/);
       assert.match(error.message, /ref=/); assert.doesNotMatch(error.message, /private-token/); return true;
@@ -151,7 +151,7 @@ test('reminder preference is durable, actually stops delivery, and cannot provis
 });
 test('client distinguishes invalid key from unregistered extension without reflecting response text', async () => {
   for (const [status, code] of [[401, 'KEY_INVALID'], [403, 'ORIGIN_DENIED']]) {
-    const call = createConnectionClient({ baseUrl, storage: area({ connectionAccessKey: key }), fetchImpl: async () => Response.json({ error: 'private-token' }, { status }) });
+    const call = createConnectionClient({ authentication: 'bearer', baseUrl, storage: area({ connectionAccessKey: key }), fetchImpl: async () => Response.json({ error: 'private-token' }, { status }) });
     await assert.rejects(call('health'), error => error.message.includes(code) && !error.message.includes('private-token'));
   }
 });
@@ -193,7 +193,7 @@ test('reference CLI supports explicit env file and state audit; private files re
   assert.equal(JSON.parse(init.stdout.split('\n')[0]).ok, true);
   assert.match(init.stdout, /check .*--write/);
   const audit = await exec(process.execPath, [cli, 'audit', file]); assert.equal(JSON.parse(audit.stdout).hardLinks, 1);
-  const state = await createFileState({ stateDir: join(dir, 'state') });
+  const state = await createFileState({ stateDir: join(dir, 'state'), authentication: 'paired' });
   await chmod(join(dir, 'state/state.json'), 0o644); await assert.rejects(state.audit());
   await chmod(join(dir, 'state/state.json'), 0o600);
   await link(join(dir, 'state/state.json'), join(dir, 'extra-link')); await assert.rejects(state.audit());

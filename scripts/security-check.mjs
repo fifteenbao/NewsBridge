@@ -2,6 +2,7 @@ import { readFile, lstat } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { OPTIONAL_CONNECTION_HOSTS, CONNECTION_CSP } from '../src/lib/endpoint.js';
 import { CONNECTION_BASE_URL } from '../src/lib/connection-config.js';
 
 const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
@@ -27,12 +28,12 @@ for (const file of files) {
   if (file.startsWith('src/') && /\.innerHTML\s*=|\.outerHTML\s*=|\beval\s*\(|\bnew\s+Function\s*\(/.test(source)) report(file, 'unsafe DOM or code execution sink');
 }
 const manifest = JSON.parse(await readFile(resolve(root, 'manifest.json'), 'utf8'));
-if (CONNECTION_BASE_URL !== '' || manifest.host_permissions || manifest.optional_host_permissions) report('manifest.json', 'public source must be offline with no host permissions');
+if (CONNECTION_BASE_URL !== '' || manifest.host_permissions || JSON.stringify(manifest.optional_host_permissions) !== JSON.stringify(OPTIONAL_CONNECTION_HOSTS)) report('manifest.json', 'public source must have no preset endpoint or required host permissions; optional HTTPS declaration only');
 if (manifest.content_scripts || manifest.externally_connectable || manifest.web_accessible_resources ||
     manifest.permissions.some(permission => !['storage', 'activeTab', 'contextMenus', 'alarms'].includes(permission))) {
   report('manifest.json', 'expanded extension access');
 }
-if (manifest.content_security_policy.extension_pages.includes('unsafe-') || (!manifest.content_security_policy.extension_pages.includes("object-src 'none'") || !manifest.content_security_policy.extension_pages.includes("connect-src 'none';"))) {
+if (manifest.content_security_policy.extension_pages !== CONNECTION_CSP) {
   report('manifest.json', 'unsafe extension content policy');
 }
 const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));

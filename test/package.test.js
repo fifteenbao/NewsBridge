@@ -16,7 +16,8 @@ test('extension archives contain only installable assets, default offline and pr
   const manifest = JSON.parse(await readFile(join(offline.directory, 'manifest.json'), 'utf8'));
   assert.ok(offline.versionArchive.endsWith(`newsbridge-V${manifest.version}.zip`));
   assert.equal(manifest.host_permissions, undefined);
-  assert.match(manifest.content_security_policy.extension_pages, /connect-src 'none';/);
+  assert.deepEqual(manifest.optional_host_permissions, ['https://*/*']);
+  assert.match(manifest.content_security_policy.extension_pages, /connect-src https:;/);
   assert.deepEqual((await readdir(offline.directory)).sort(), ['LICENSE', 'icons', 'manifest.json', 'src']);
   const zip = await readFile(offline.archive), names = []; let offset = 0;
   while (zip.readUInt32LE(offset) === 0x04034b50) {

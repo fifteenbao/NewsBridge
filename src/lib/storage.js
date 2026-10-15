@@ -3,8 +3,9 @@ import { READING_STATUSES } from './reading-state.js';
 import { parseTableUrl } from './table-url.js';
 import { SafeError, isSafeArticleUrl } from './security.js';
 import { callKnowledge } from './knowledge.js';
-import { callConnection, validAccessKey } from './connection.js';
-import { CONNECTION_BASE_URL } from './connection-config.js';
+import { callConnection } from './connection.js';
+import { getPairingStatus } from './pairing-client.js';
+import { storedEndpoint, endpointValue, releaseEndpointPermission, endpointPermission, collectionArchiveKey } from './endpoint.js';
 
 const ITEMS_KEY = 'items';
 const SETTINGS_KEY = 'settings';
@@ -46,42 +47,52 @@ export async function deleteItem(id) {
   return items;
 }
 export async function getSettings() {
-  const { settings = {} } = await chrome.storage.local.get(SETTINGS_KEY);
-  return { ...(settings.reminderTime !== undefined || settings.timeZone !== undefined ? validateSchedule(settings.reminderTime, settings.timeZone) : {}), ...(settings.provider ? { provider: settings.provider } : {}), language: settings.language === 'zh' ? 'zh' : 'en', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}), ...(typeof settings.remindersEnabled === 'boolean' ? { remindersEnabled: settings.remindersEnabled } : {}) };
+  const data = await chrome.storage.local.get([SETTINGS_KEY, 'connectionEndpoint']);
+  const { settings = {} } = data;
+  const endpoint = storedEndpoint(data);
+  return { ...(endpoint ? { connectionUrl: endpoint } : {}), ...(settings.reminderTime !== undefined || settings.timeZone !== undefined ? validateSchedule(settings.reminderTime, settings.timeZone) : {}), ...(settings.provider ? { provider: settings.provider } : {}), language: settings.language === 'zh' ? 'zh' : 'en', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}), ...(typeof settings.remindersEnabled === 'boolean' ? { remindersEnabled: settings.remindersEnabled } : {}) };
 }
 export function validateSettings(settings) {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new SafeError('Invalid settings.');
-  return { ...(settings.reminderTime !== undefined || settings.timeZone !== undefined ? validateSchedule(settings.reminderTime, settings.timeZone) : {}), ...(settings.provider ? { provider: settings.provider } : {}), language: settings.language === 'zh' ? 'zh' : 'en', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}), ...(typeof settings.remindersEnabled === 'boolean' ? { remindersEnabled: settings.remindersEnabled } : {}) };
+  if (settings.connectionUrl !== undefined && typeof settings.connectionUrl !== 'string') throw new SafeError('Enter a valid HTTPS connection service address.');
+  return { ...(typeof settings.connectionUrl === 'string' ? { connectionUrl: endpointValue(settings.connectionUrl) } : {}), ...(settings.reminderTime !== undefined || settings.timeZone !== undefined ? validateSchedule(settings.reminderTime, settings.timeZone) : {}), ...(settings.provider ? { provider: settings.provider } : {}), language: settings.language === 'zh' ? 'zh' : 'en', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}), ...(typeof settings.remindersEnabled === 'boolean' ? { remindersEnabled: settings.remindersEnabled } : {}) };
 }
 export async function setSettings(settings) {
   const next = validateSettings(settings);
   const provider = settings.provider || 'feishu';
   if (!['feishu', 'google'].includes(provider)) throw new SafeError('Invalid storage provider.');
-  const current = await chrome.storage.local.get(['collectionIdentity', 'connectionProvider']);
+  const current = await chrome.storage.local.get(['collectionIdentity', 'connectionProvider', 'connectionEndpoint', 'connectionBaseUrl']);
   if (current.collectionIdentity && provider !== (current.connectionProvider || 'feishu')) throw new SafeError('Disconnect the current collection before switching providers.');
-  if (settings.connectionAccessKey && !CONNECTION_BASE_URL) throw new SafeError('This offline build has no connection configured.');
-  if (settings.connectionAccessKey) {
-    if (!validAccessKey(settings.connectionAccessKey)) throw new SafeError('Invalid connection access key.');
-  }
-  await callConnection('preferences', { language: next.language, ...(next.tableUrl ? { tableUrl: next.tableUrl, ...(parseTableUrl(next.tableUrl).base ? { table: parseTableUrl(next.tableUrl).base } : {}) } : {}), ...(next.reminderTime !== undefined ? { reminderTime: next.reminderTime, timeZone: next.timeZone } : {}), ...(next.remindersEnabled !== undefined ? { remindersEnabled: next.remindersEnabled } : {}) }, { accessKey: settings.connectionAccessKey, provider });
-  if (settings.connectionAccessKey) await chrome.storage.local.set({ connectionAccessKey: settings.connectionAccessKey, connectionBaseUrl: CONNECTION_BASE_URL, connectionKeySavedAt: new Date().toISOString() });
-  await chrome.storage.local.set({ [SETTINGS_KEY]: next, connectionProvider: provider });
+  const endpoint = next.connectionUrl !== undefined ? next.connectionUrl : storedEndpoint(current);
+  const previous = storedEndpoint(current);
+  if (current.collectionIdentity && endpoint !== previous) throw new SafeError('Disconnect the current collection before changing the connection address.');
+  if (endpoint && !await chrome.permissions.contains(endpointPermission(endpoint))) throw new SafeError('Grant access to this connection host in Settings before connecting.');
+  const dataPair = (await chrome.storage.local.get('connectionPairings')).connectionPairings?.[endpoint];
+  if (endpoint && dataPair?.status !== 'approved') throw new SafeError('Pair this browser in Settings and confirm the request on the server before connecting.');
+  const result = await callConnection('preferences', { language: next.language, ...(next.tableUrl ? { tableUrl: next.tableUrl, ...(parseTableUrl(next.tableUrl).base ? { table: parseTableUrl(next.tableUrl).base } : {}) } : {}), ...(next.reminderTime !== undefined ? { reminderTime: next.reminderTime, timeZone: next.timeZone } : {}), ...(next.remindersEnabled !== undefined ? { remindersEnabled: next.remindersEnabled } : {}) }, { provider, endpoint, pinIdentity: false });
+  const data = await chrome.storage.local.get(['collectionArchives', 'items']);
+  const archive = result.identity && data.collectionArchives?.[collectionArchiveKey(result.identity, endpoint)];
+  await chrome.storage.local.set({ [SETTINGS_KEY]: next, connectionProvider: provider, connectionEndpoint: endpoint,
+    ...(result.identity ? { collectionIdentity: result.identity } : {}),
+    ...(!current.collectionIdentity && Array.isArray(archive) ? { items: [...archive, ...(data.items || []).filter(item => !archive.some(old => old.id === item.id))] } : {}),
+    connectionAccessKey: '', connectionBaseUrl: endpoint, connectionKeySavedAt: null });
+  if (endpoint !== previous) await releaseEndpointPermission(previous, endpoint);
   return next;
 }
 
 export async function getConnectionKeyStatus() {
-  const data = await chrome.storage.local.get(['connectionAccessKey', 'connectionKeySavedAt', 'connectionBaseUrl']);
-  return { saved: validAccessKey(data.connectionAccessKey), savedAt: typeof data.connectionKeySavedAt === 'string' && Number.isFinite(Date.parse(data.connectionKeySavedAt)) ? data.connectionKeySavedAt : null,
-    matchesEndpoint: data.connectionBaseUrl === CONNECTION_BASE_URL };
+  const pair = await getPairingStatus();
+  return { saved: pair.approved, savedAt: null, baseUrl: pair.baseUrl, matchesEndpoint: pair.approved };
 }
 
 // Preserve separate collections; no remote deletion or credential revocation.
 export async function disconnectCollection() {
-  const data = await chrome.storage.local.get(['items', 'collectionIdentity', 'collectionArchives']);
+  const data = await chrome.storage.local.get(['items', 'collectionIdentity', 'collectionArchives', 'connectionEndpoint', 'connectionBaseUrl']);
   const archives = data.collectionArchives || {};
-  if (data.collectionIdentity && data.items?.length) archives[JSON.stringify(data.collectionIdentity)] = data.items;
+  if (data.collectionIdentity && data.items?.length) archives[collectionArchiveKey(data.collectionIdentity, storedEndpoint(data) || data.connectionBaseUrl || '')] = data.items;
   // One atomic storage update prevents loss if Chrome quota is reached.
   await chrome.storage.local.set({ collectionArchives: archives, items: data.collectionIdentity ? [] : data.items || [], settings: { language: 'en' }, collectionIdentity: null,
-    connectionAccessKey: '', connectionKeySavedAt: null, connectionBaseUrl: '', connectionProvider: 'feishu', knowledgeSync: null });
+    connectionEndpoint: '', connectionAccessKey: '', connectionKeySavedAt: null, connectionBaseUrl: '', connectionProvider: 'feishu', knowledgeSync: null });
+  await releaseEndpointPermission(storedEndpoint(data));
   return { ok: true };
 }

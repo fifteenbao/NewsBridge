@@ -14,6 +14,10 @@ Run `npm run build` with Node.js 22+ and load `dist/newsbridge/` at `chrome://ex
 
 ### Keep the installation path and extension ID / 固定安装目录与扩展 ID
 
+For the exact ID copy/paste location and restart steps, see [English](docs/SELF-HOSTING.md#fill-in-the-chrome-extension-id) / [中文](docs/SELF-HOSTING.zh-CN.md#填写-chrome-扩展-id). The ID goes in top-level extensionId in the service’s private/host.json. Configure the service address once; switching tables on that service requires no ZIP download.
+
+扩展 ID 填在连接服务设备 private/host.json 的最外层 extensionId；复制、填写及重启步骤见上述链接。同一服务地址只需配置一次，切换表格不必重复下载压缩包。localhost 指 Chrome 所在电脑，当前 V0.3.0 尚不支持本机 HTTP 模式。
+
 **Unpacked extension IDs can change when the folder path changes.** This public manifest has no fixed key. Keep the same installation folder and Chrome profile; replace files there and click Reload for updates. A fixed folder helps preserve the ID, but is not a promise across computers/profiles. After moving or re-extracting elsewhere, copy the actual ID from chrome://extensions (also shown in the settings footer), update the connection's private extensionId allowlist, and recreate/restart its handler. Otherwise the handler returns **403 ORIGIN_DENIED**. Re-entering the access key alone will not fix an origin mismatch. [Chrome documents the key mechanism for maintaining an ID](https://developer.chrome.com/docs/extensions/reference/manifest/key).
 
 **未固定 key 的已解压扩展，换解压目录可能改变扩展 ID。** 更新时在同一 Chrome 配置中覆盖固定安装目录，再点击“重新加载”。这不能保证跨设备或跨 Chrome 配置的 ID 一致。移动目录或解压到新位置后，请从 chrome://extensions（或设置页页脚）复制实际 ID，更新连接端私人配置的 extensionId 白名单，并重建/重启处理器。否则会报 **403 ORIGIN_DENIED**；只重填密钥不能解决来源不匹配。不要把白名单改成通配符。
@@ -36,35 +40,23 @@ Doctor checks local format only; it does not log in, contact Feishu, test an ada
 
 Doctor 仅检查本地格式，不登录、不访问飞书，也不验证适配器和调度是否可用。
 
-## 3. Prepare a private connected build / 生成私人连接包
+## 3. Configure the endpoint in Chrome / 在插件内填写连接地址
 
-After your existing tool implements the contract, build for its HTTPS base URL, including an optional application path:
+Install the public extension (source folder or `npm run build` → `dist/newsbridge/`). In Settings enter **Connection service address**, the HTTPS base URL provided by your existing host, including its application path. For example use https://connection.example.com/newsbridge/ with placeholders replaced privately. You do not need to edit CONNECTION_BASE_URL, download a different ZIP or rebuild for each server address.
 
-已有工具实现接口后，为其 HTTPS 连接地址打包，可包含应用子路径：
+安装公开扩展（源码目录或 npm run build 生成的 dist/newsbridge/）。在设置页填写**连接服务地址**，使用自己的 HTTPS baseUrl，可包含子目录。无需修改 CONNECTION_BASE_URL，也不用为每个地址重新下载或打包。实际地址保存在当前 Chrome 配置的扩展本地存储，不进入公开源码或安装包。
 
-```sh
-npm run build -- --base-url https://connection.example.com/newsbridge/
-```
+Click Check connection or Save settings to request access to that exact HTTPS host. The manifest declares HTTPS hosts as optional so a user can choose their server; no such host is granted at installation. The client verifies the selected host permission before sending credentials or captures. Rejecting permission keeps local capture available. Chrome host permissions do not isolate application subdirectories; the client and host handler still require the exact configured base path.
 
-Replace the placeholder privately. Load `dist/newsbridge-connected/`. Host permissions use the exact origin; requests use the configured base path; public source stays unchanged. The private ZIP is `dist/newsbridge-connected.zip` and must not be published. The script overwrites only its generated output. A ZIP is unzipped before loading; it is not a Web Store installation.
+点击检查或保存时，Chrome 仅申请所填 HTTPS 主机的访问权限；安装时不授予所有网站权限。权限拒绝则不发起连接，仍可本地收藏。域名权限不隔离子目录，但客户端及服务端仍校验完整 baseUrl 和路径。不支持 HTTP 或 localhost 模式。
 
-私下替换示例域名，加载 `dist/newsbridge-connected/`。仅申请该主机的域名权限，请求使用配置的目录前缀，公开源码保持不变。带真实域名的 ZIP 不应公开。脚本只覆盖生成目录；ZIP 需解压再加载，不是商店安装。
+Copy the actual ID from chrome://extensions into top-level extensionId in the service's private/host.json and restart its handler. See the exact steps in the [deployment guide](docs/SELF-HOSTING.md#fill-in-the-chrome-extension-id). Enter the table link, request pairing, confirm its fingerprint on the server, check again, save and sync. See [pairing instructions](docs/PAIRING.md). Saving an address does not itself deploy a server or configure provider credentials.
 
-To keep the real address out of commands and public source, put `{"baseUrl":"https://connection.example.com/newsbridge/"}` (with your actual private address) in Git-ignored `private/endpoint.json`, then build from that file:
+从 chrome://extensions 复制实际扩展 ID，填入**服务端** private/host.json 最外层 extensionId，并重启处理器，具体步骤见[中文部署指南](docs/SELF-HOSTING.zh-CN.md#填写-chrome-扩展-id)。再填写表格链接、发起配对，按[配对指南](docs/PAIRING.md)在服务端核对指纹确认，再检查、保存、同步。填写地址不会自动部署服务或授权飞书／Google。
 
-也可以把真实连接地址保存在 Git 忽略的 `private/endpoint.json`，文件格式为上述 baseUrl 对象；无需将实际地址写进命令或公开源码：
+Before changing an associated address/provider/account, disconnect in Settings. This archives linked captures by endpoint and verified table identity, clears the active association and attempts to revoke the old optional host permission. Pair the browser with the new endpoint; its old pairing is never transferred automatically. Disconnect does not revoke provider credentials or stop server reminders. A prefilled private build remains optional for operators who want a fixed domain; its required host permission cannot be removed at runtime, and another domain requires the configurable public build.
 
-```sh
-npm run build -- --config private/endpoint.json
-```
-
-Configure the same `baseUrl` in the existing connection handler and preserve the path prefix in routing. Chrome host permissions do not isolate subdirectories; see [the routing and security explanation](docs/CONNECTION.md#base-url-and-origin--连接地址与-origin).
-
-连接端使用相同 baseUrl，路由保留目录前缀。Chrome 域名权限不能按子目录隔离，详见接口文档的路径与安全说明。
-
-Give the resulting 32-character extension ID to the existing connection's origin validator. In Settings enter its dedicated access key, choose **Save settings**, then **Check connection** and **Sync reading library**. The key is an opaque 32–512 character base64url credential issued by the host environment; do not reuse a Feishu access token. Changes to the endpoint require re-entering the key. Before changing identity/table/provider, disconnect in Settings to archive the current collection, then reassociate. Separate profiles remain optional.
-
-将生成的扩展 ID 填入连接端的来源校验。在 Settings 输入连接专用密钥，保存设置、检查连接并同步。密钥由宿主环境签发，使用 32–512 位 base64url 字符，不复用飞书令牌。更换地址后需重新填写密钥；换账号、表格或类型前在设置页取消关联，归档当前资料库，再重新关联；也可选用独立 Chrome 配置。
+更换已关联的地址、类型或账号前先取消关联。按地址及账号／表格身份归档，清除当前关联并尝试撤销旧的可选主机权限；新地址需独立配对，不转移原配对认证。取消关联不撤销飞书／Google 凭证、不停止服务端提醒。可选私人预填包仍可用于固定域名，但其安装时必需域名权限不能运行时撤销；换域名需使用公开可配置包。
 
 ## 4. Verify and optionally schedule / 验证并按需设置提醒
 
@@ -115,7 +107,7 @@ These examples are exercised with mocked Feishu responses and real child-process
 
 ## Environment and private files / 环境与私人文件
 
-Use `private/` for your host config, environment file, state and connection access key. It is ignored by this repository's `.gitignore`; this only prevents ordinary Git tracking, **not OS access or files already tracked by Git**. Do not force-add it, publish it, serve it through HTTPS, or include it in a release. Example builds package only extension assets, and skip hidden filesystem metadata. Use the host's existing secret manager where available.
+Use `private/` for your host config, environment file, state and approved pairing identities. It is ignored by this repository's `.gitignore`; this only prevents ordinary Git tracking, **not OS access or files already tracked by Git**. Do not force-add it, publish it, serve it through HTTPS, or include it in a release. Example builds package only extension assets, and skip hidden filesystem metadata. Use the host's existing secret manager where available.
 
 private/ 用于本地配置、环境文件、状态与密钥，已被 Git 忽略，但 Git 忽略不能替代操作系统权限，也不会自动撤回已经跟踪的文件。不要强制提交或通过网站提供访问；已有密钥管理可直接替代环境文件。
 
@@ -138,11 +130,11 @@ Do not overwrite an existing private/host.json with the copy command. The enviro
 | Path / 路径 | Requirement / 要求 |
 | --- | --- |
 | private/ and stateDir | Owned by the current service uid; 0700 recommended; no group/other access. stateDir cannot be a symlink. / 当前服务用户所有，无组或其他用户权限，不使用目录软链接 |
-| state.json and access.key | Regular files, current uid, 0600 recommended (no group/other bits), nlink=1, no symlink. / 普通文件、同一 uid、单硬链接、无软链接 |
+| state.json | Regular files, current uid, 0600 recommended (no group/other bits), nlink=1, no symlink. / 普通文件、同一 uid、单硬链接、无软链接 |
 | host.json and host.env | Keep 0600 under private/; never publish. / 私人配置不发布 |
 | state.lock | Held across all instances/jobs using this state; never steal based on age. / 所有相关进程共用同一锁，不按年龄抢锁 |
 
-`audit` checks the current state directory and files, ownership, link count, state format and access-key format under the same exclusive lock. A symlinked ancestor, ACLs, backups and network-filesystem guarantees remain the operator's responsibility. init does not reset or silently chmod existing files. Use the correct owning account to fix permissions; do not recursively chmod unrelated files. A missing/unreadable environment file gets an environment error; a missing/invalid access.key gets ACCESS_KEY.
+`audit` checks the current state directory and files, ownership, link count, state format and pairing state under the same exclusive lock. A symlinked ancestor, ACLs, backups and network-filesystem guarantees remain the operator's responsibility. init does not reset or silently chmod existing files. Use the correct owning account to fix permissions; do not recursively chmod unrelated files. A missing/unreadable environment file gets an environment error; an unapproved browser gets PAIR_REQUIRED.
 
 audit 只检查配置指定的状态目录和文件，不宣称审计整台设备。目录上层软链接、ACL、备份与共享文件系统由环境管理方检查。init 不自动重置或放宽现有权限；应由正确账户修复指定文件，不要递归修改无关目录。
 
@@ -168,23 +160,21 @@ The page shows **Key saved / No key saved**, the local save time, and rotation g
 
 Table feedback progresses through format validation, matching server configuration, and verified read/schema access. It never claims write permission from a read-only request. Empty server fields explain that connection is pending; Check connection / Retry retries it. Sync stays disabled until a saved key, a successful check and a matching table are available. The footer displays the configured baseUrl, extension version and negotiated protocol version.
 
-The **Daily unread reminders** switch saves a real server-side preference. The host must first enable reminder capability after configuring its existing scheduler, chat and permissions. Users can then pause/resume it without recreating the host; daily() checks the saved preference on every run. The switch cannot provision a scheduler or send immediately; an in-flight run holds the shared lock and finishes before a preference change takes effect. **Reminder message language** changes Feishu messages, not the separately chosen interface language.
+The **Daily unread reminders** switch saves a real server-side preference. The host must first enable reminder capability after configuring its existing scheduler, chat and permissions. Users can then pause/resume it without recreating the host; daily() checks the saved preference on every run. The switch cannot provision a scheduler or send immediately; an in-flight run holds the shared lock and finishes before a preference change takes effect. The header language changes the interface immediately; Save settings applies the same language to reminders. There is no separate reminder-language selector.
 
-页面显示密钥是否已存及保存时间，失焦校验不会保存密钥，保存按钮才会持久化。401 与 403 分别提示密钥和扩展来源问题。表格反馈区分格式、配置匹配和读取/字段权限；不把读取成功当作写入成功。未连接时只读字段提供占位提示，同步按钮置灰；页脚显示地址、扩展和协议版本。提醒开关保存到服务端，可暂停/恢复已有调度器的发送；不能创建调度器或立即发送，已经持锁执行的任务先完成再应用变更。提醒语言只改变飞书消息，界面语言单独设置。
+页面显示配对状态与指纹，首次须由服务端确认；401 与 403 分别提示配对认证和扩展来源问题。表格反馈区分格式、配置匹配和读取/字段权限；不把读取成功当作写入成功。自动解析的 Base/Spreadsheet 与 Table/gid ID 不显示为输入项；未连接时同步按钮置灰；页脚显示地址、扩展和协议版本。提醒开关保存到服务端，可暂停/恢复已有调度器的发送；不能创建调度器或立即发送，已经持锁执行的任务先完成再应用变更。仅保留页眉语言选择：界面立即切换，保存后同步到提醒语言。
 
 ## Interface language and parsed identifiers / 界面语言与 ID 解析
 
-Interface language initially follows Chrome (English or Simplified Chinese) and can be changed in Settings. The choice is stored only in the current Chrome profile, takes effect immediately and makes no connection request. Reminder message language remains a separate server preference. Labels, hints, button text and known diagnostic messages use the chosen interface language; diagnostic codes, request references and provider codes remain intact for troubleshooting.
+Interface language initially follows Chrome (English or Simplified Chinese) and can be changed in Settings. The choice is stored only in the current Chrome profile, takes effect immediately and makes no connection request. Save settings persists the header language as the reminder preference as well. Labels, hints, button text and known diagnostic messages use the chosen interface language; diagnostic codes, request references and provider codes remain intact for troubleshooting.
 
-界面语言首次按 Chrome 的语言选择英文或简体中文，可在设置中立即切换，单独保存在本机；切换不请求连接服务、不修改提醒语言。已知错误提示会翻译，诊断编号、步骤及平台数字码保留以便排查。
+界面语言首次按 Chrome 的语言选择英文或简体中文，可在设置中立即切换，单独保存在本机；切换即时更新界面，点击保存后将相同语言同步到提醒偏好。已知错误提示会翻译，诊断编号、步骤及平台数字码保留以便排查。
 
 A direct Bitable link with table= fills both IDs immediately. A base-only share link fills Base token and matches the same base’s configured Table ID after connection verification. A wiki share link resolves on the connection during its check. These read-only fields show parsed identifiers, not granted permissions. Invalid links clear the parsed values; a mismatch with the server keeps sync disabled. The chat_id is shown only in the reading-reminders section and comes from the host configuration. There is no chat ID in a Bitable link. For sync without reminders use chatId empty and remindersEnabled false; no conversation is required.
 
 含 table= 的直接链接即时解析两个 ID；只有 /base/ 的分享链接在检查连接后匹配同一多维表格下已配置的数据表；/wiki/ 分享链接由连接端在检查连接时解析。解析成功不等于获得权限，无效链接会清空旧值，与连接端不匹配时仍禁止同步。会话 ID 只显示在阅读提醒区，由连接端配置返回，表格链接不包含此 ID。只同步时 chatId 留空、remindersEnabled 关闭即可。
 
-The access-key field includes acquisition instructions. Ask your existing connection operator for its dedicated NewsBridge key, or run `node examples/run.mjs init private/host.json` in the reference connection's project folder and privately read `<stateDir>/access.key`. The example config resolves this to `private/state/access.key`. Run initialization on the machine that actually owns the connection, after preparing its private config. Do not enter a Feishu App Secret or Feishu token into this field.
 
-密钥输入框提供获取说明：向已有连接的配置方领取专用密钥；自行运行参考实现时，在实际运行连接的设备上准备好私人配置，再执行初始化命令并私下读取 access.key。默认路径为 private/state/access.key；不要将飞书 App Secret 或飞书令牌填写到插件。
 
 ### Feishu share links / 飞书分享链接
 

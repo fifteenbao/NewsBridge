@@ -2,7 +2,7 @@
 
 [English](SELF-HOSTING.md) · [配置指南](../SETUP.md)
 
-Chrome 将收藏通过 HTTPS 发给**你自己的连接服务**，由服务端持有凭证并调用飞书／Google API。插件只保存 NewsBridge 专用访问密钥，不复用飞书桌面客户端或 Google 网页登录。Google 表格使用 Sheets API，不使用 Apps Script。两种表格的提醒目前都发送到**已配置的飞书会话**，尚不支持 Google 邮件提醒。
+Chrome 将收藏通过 HTTPS 发给**你自己的连接服务**，由服务端持有凭证并调用飞书／Google API。插件自动使用已确认的浏览器身份签名，不复用飞书桌面客户端或 Google 网页登录。Google 表格使用 Sheets API，不使用 Apps Script。两种表格的提醒目前都发送到**已配置的飞书会话**，尚不支持 Google 邮件提醒。
 
 以下参考实现需要 Node.js 22+ 和 POSIX 文件系统，不需要安装 npm 运行依赖。同一机器上的服务和定时任务共用私人状态目录、跨进程文件锁。多机器须提供持久化数据库和共享锁，不能简单复制状态文件。导入示例不会自动监听端口、部署或创建定时任务。
 
@@ -16,7 +16,7 @@ Chrome 将收藏通过 HTTPS 发给**你自己的连接服务**，由服务端�
 - Google：examples/host.google.example.json。
 - 两种都配置、在设置页切换：examples/host.dual.example.json。
 
-真实参数只填在私人文件。connector 指定 CLI 的默认类型；存在 connections 时，该映射才是实际启用的 feishu／google 配置，默认类型也必须在映射中存在。各配置的 storageProvider 应与映射名称一致。一个连接密钥授权该服务已配置的两种表格，适合单个可信用户；它不是多用户账号系统。
+真实参数只填在私人文件。connector 指定 CLI 的默认类型；存在 connections 时，该映射才是实际启用的 feishu／google 配置，默认类型也必须在映射中存在。各配置的 storageProvider 应与映射名称一致。一个已确认的浏览器身份授权该服务已配置的两种表格，适合单个可信用户；它不是多用户账号系统。
 
 | 参数 | 飞书 | Google |
 | --- | --- | --- |
@@ -84,7 +84,8 @@ node examples/run.mjs check private/host.json --env private/host.env --provider 
 
 --env 只加载明确指定的文件，先于凭证回调执行；已有进程环境变量优先。host.env 中的文件路径不相对该文件解析，请用服务账号 JSON 的绝对路径。check 只读；check --write 创建一条带标记的临时记录、读回并清理。飞书删除该记录；Google 只清空临时记录的八个单元格并移除元数据，留下空行，不删除网格行或已有用户记录。清理不确定时保留私人 probe 日志，应核实对应临时记录后再重试，不盲目清空日志或提醒发送记录。
 
-连接密钥位于 stateDir/access.key，默认 private/state/access.key。插件填写此专用密钥，不能用 App Secret 或 OAuth token。初始化保留已有密钥。不要公开密钥或放进命令历史／日志；轮换服务端密钥后，各授权 Chrome 配置重新输入。
+[浏览器配对](PAIRING.md)代替手填密钥：服务端填写扩展 ID，设置页发起配对，核对指纹确认一次，再检查连接。新的参考初始化不创建 access.key。
+
 
 ## 4. 接入现有 HTTPS 服务
 
@@ -105,7 +106,10 @@ location /newsbridge/ {
     proxy_pass http://127.0.0.1:8787;
     proxy_set_header Host $host;
     proxy_set_header Origin $http_origin;
-    proxy_set_header Authorization $http_authorization;
+    proxy_set_header X-NewsBridge-Pair $http_x_newsbridge_pair;
+    proxy_set_header X-NewsBridge-Time $http_x_newsbridge_time;
+    proxy_set_header X-NewsBridge-Nonce $http_x_newsbridge_nonce;
+    proxy_set_header X-NewsBridge-Signature $http_x_newsbridge_signature;
 }
 ```
 
@@ -113,23 +117,49 @@ location /newsbridge/ {
 
 ## 5. 安装、关联、取消关联与切换
 
-```sh
-npm run build -- --config private/host.json
+### 直接在设置页配置地址
+
+安装公开包，或运行 npm run build 并加载 dist/newsbridge/。在设置页填写**连接服务地址**（自己的 HTTPS baseUrl，可含子目录），无需编辑 CONNECTION_BASE_URL 或为每个服务器重打包。点击检查／保存时，Chrome 申请此具体主机的可选权限；安装时不获得所有网站访问权限。声明 https://*/* 是运行时选择域名的能力范围，不代表已授予该范围。拒绝权限后仍可本地收藏。[Chrome 可选权限](https://developer.chrome.com/docs/extensions/reference/api/permissions)
+
+填写的地址须与服务端 baseUrl 一致。Base/Spreadsheet 和 Table/gid ID 自动解析且不再显示为输入项。选择飞书类型只显示飞书链接提示，选择 Google 则显示 Google 表格链接提示。页眉语言立即改变界面，保存后同步到提醒，不再提供第二个语言选项。
+
+目前仍仅支持 HTTPS 公共主机，不支持 http://localhost:8787/；localhost 指 Chrome 所在电脑，不能代替远程服务器地址。连接地址不是表格链接，也不能代替服务端部署或授权。上文 127.0.0.1:8787 是服务器反向代理的内部入口，Chrome 访问其 HTTPS 地址。
+
+### 填写 Chrome 扩展 ID
+
+1. 用下方命令构建，打开 chrome://extensions，开启“开发者模式”，加载 dist/newsbridge/。
+2. 找到 **NewsBridge** 卡片，复制卡片显示的 **ID**（32 个 a–p 字母），不要复制名称或版本。设置页页脚也显示实际扩展 ID。
+3. 打开**连接服务设备上**的 private/host.json，将 ID 填到最外层 extensionId 字段，与 baseUrl、stateDir 同级；不是 connector 内部字段。
+4. 保存后重启连接服务，或让已有路由重新加载配置并重建处理器。随后在扩展设置页检查连接。
+
+配置位置示例（只展示结构，保留文件中的其他参数）：
+
+```json
+{
+  "extensionId": "REPLACE_WITH_ACTUAL_CHROME_EXTENSION_ID"
+}
 ```
 
-固定目录加载 dist/newsbridge-connected/。在 chrome://extensions 复制实际扩展 ID 到 host.json，重启／重建处理器。移动解压目录可能改变 ID，导致 **403 ORIGIN_DENIED**；升级时覆盖同一路径并重新加载，不放宽白名单。
+只填写实际 ID，不加 chrome-extension:// 前缀。留空允许服务启动和带密钥的运维检查，但浏览器请求会被拒绝。填写错误、未重启，或加载目录变化后仍使用旧 ID，会导致 403 ORIGIN_DENIED；重新填写访问密钥不能解决该错误。
 
-在设置页选择飞书多维表格／Google Sheets，填写连接密钥和对应链接，检查连接并保存。飞书链接可不含 table=；Google 链接可不含 gid，此时只匹配同一 Spreadsheet 中服务端指定的工作表。两种表格链接都不能推导飞书提醒会话 ID。服务端必须预先配置所选类型，下拉框不创建凭证或授予权限。双类型配置可在同一 HTTPS 地址切换，无需重打扩展包。
 
-切换已关联资料库前点击**取消关联**：按实际验证的账号身份与表格保存本机归档，清空当前关联列表、密钥和设置，不删除远端记录。未关联的本机收藏保留。重新连接完全相同的账号／表格会恢复对应归档；不同类型／表格使用独立列表，旧关联收藏不会误上传。归档受 Chrome 存储配额限制，保存失败保留原数据。卸载扩展可能清除本机归档，远端表格是持久化管理空间。
+```sh
+npm run build
+```
 
-取消关联只影响本机，**不撤销服务端授权，也不停止服务端任务**。需要暂停提醒时先关闭开关并保存；未确认发送记录仍保存在服务端，重新连接后核实。服务端更换账号／表格也需要取消关联再连接。换 HTTPS 域名须生成新的私人连接包并核对密钥，插件不开放任意端点编辑。
+固定目录加载 dist/newsbridge/。在 chrome://extensions 复制实际扩展 ID 到 host.json，重启／重建处理器。移动解压目录可能改变 ID，导致 **403 ORIGIN_DENIED**；升级时覆盖同一路径并重新加载，不放宽白名单。
+
+在设置页选择飞书多维表格／Google Sheets，填写对应链接，发起配对并在服务端核对指纹确认，再次检查并保存，详见[配对指南](PAIRING.md)。飞书链接可不含 table=；Google 链接可不含 gid，此时只匹配同一 Spreadsheet 中服务端指定的工作表。两种表格链接都不能推导飞书提醒会话 ID。服务端必须预先配置所选类型，下拉框不创建凭证或授予权限。双类型配置可在同一 HTTPS 地址切换，无需重打扩展包。
+
+切换已关联资料库前点击**取消关联**：按 HTTPS 地址及实际验证的账号／表格保存本机归档，清空当前关联列表与设置，不删除远端记录。未关联的本机收藏保留。重新连接完全相同的账号／表格会恢复对应归档；不同类型／表格使用独立列表，旧关联收藏不会误上传。归档受 Chrome 存储配额限制，保存失败保留原数据。卸载扩展可能清除本机归档，远端表格是持久化管理空间。
+
+取消关联只影响本机，**不撤销服务端授权，也不停止服务端任务**。需要暂停提醒时先关闭开关并保存；未确认发送记录仍保存在服务端，重新连接后核实。服务端更换账号／表格也需要取消关联再连接。换 HTTPS 地址时先取消关联，在设置页填写新地址、授权其具体主机并独立配对，公开可配置包无需重新构建；私人预填包仍受固定域名限制。
 
 ## 6. 自定义每日提醒
 
 两种表格都可配置飞书消息凭证、目标 chatId 和既有调度器，再启用服务端 remindersEnabled。Google 还须设置 messageConnectionId 为实际飞书应用身份；不使用提醒时，Google 收藏／同步不需要飞书应用。
 
-设置页可修改开关、消息语言、每日 HH:mm 和 IANA 时区，默认仍为 10:00 Asia/Shanghai。保存写入持久化的服务端偏好，检查连接回显实际值。不同类型分别保存偏好与发送记录。会话目标由服务端指定，浏览器不能随意改收件人。
+设置页可修改开关、每日 HH:mm 和 IANA 时区，页眉语言保存后同时用于提醒，默认仍为 10:00 Asia/Shanghai。保存写入持久化的服务端偏好，检查连接回显实际值。不同类型分别保存偏好与发送记录。会话目标由服务端指定，浏览器不能随意改收件人。
 
 让已有任务每分钟或每几分钟检查一次，不将调度器锁定在 10:00，界面改时间才会自动生效。例如已有 Linux cron 中手动加入下列任务，每种已启用类型各一条，真实路径私下替换：
 

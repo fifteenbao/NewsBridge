@@ -5,7 +5,7 @@ import { resolve, join } from 'node:path';
 import { randomUUID, randomBytes, timingSafeEqual } from 'node:crypto';
 import { DiagnosticError } from '../src/lib/diagnostics.js';
 
-export async function createFileState({ stateDir }) {
+export async function createFileState({ stateDir, authentication = 'bearer' }) {
   if (typeof stateDir !== 'string' || !stateDir) throw new Error('stateDir is required.');
   const dir = resolve(stateDir);
   await mkdir(dir, { recursive: true, mode: 0o700 });
@@ -56,7 +56,7 @@ export async function createFileState({ stateDir }) {
   return { store, exclusive,
     async audit() {
       privateFile(await lstat(dir), true);
-      await read('state.json'); await accessKey();
+      await read('state.json'); if (authentication !== 'paired') await accessKey();
       const state = await store.load();
       if (state.version !== 1 || !state.scopes || typeof state.scopes !== 'object' || Array.isArray(state.scopes)) throw new Error('Invalid state.');
       return { ok: true, directory: '0700 or stricter', files: '0600 or stricter', owner: 'current uid', hardLinks: 1, probeCleanupRequired: !!state.probe };
@@ -64,11 +64,11 @@ export async function createFileState({ stateDir }) {
     checkAccessKey: async () => { await accessKey(); },
     // Explicit initialization only. Restarting must never erase receipts or rotate the key.
     initialize: () => exclusive(async () => {
-      for (const [name, value] of [['state.json', JSON.stringify({ version: 1, scopes: {} })], ['access.key', randomBytes(32).toString('base64url')]]) {
+      for (const [name, value] of [['state.json', JSON.stringify({ version: 1, scopes: {} })], ...(authentication === 'paired' ? [] : [['access.key', randomBytes(32).toString('base64url')]])]) {
         try { await create(name, value); } catch (error) { if (error.code !== 'EEXIST') throw error; }
         await read(name);
       }
-      await accessKey();
+      if (authentication !== 'paired') await accessKey();
       const state = await store.load();
       if (state.version !== 1 || !state.scopes || typeof state.scopes !== 'object' || Array.isArray(state.scopes)) throw new Error('Invalid existing state; preserve it for diagnosis.');
     }),

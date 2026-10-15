@@ -1,6 +1,7 @@
+import { signConnectionRequest } from './pairing-client.js';
 import { cleanDiagnostic, formatDiagnostic } from './diagnostics.js';
 import { parseTableUrl } from './table-url.js';
-import { CONNECTION_BASE_URL } from './connection-config.js';
+import { storedEndpoint, endpointValue, endpointPermission, collectionArchiveKey } from './endpoint.js';
 import { SafeError, readJsonResponse } from './security.js';
 import { parseConnectionUrl } from './connection-url.js';
 const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences']);
@@ -8,31 +9,46 @@ export const validAccessKey = value => typeof value === 'string' && /^[A-Za-z0-9
 const validIdentity = value => value && /^[A-Za-z0-9.@_:-]{1,254}$/.test(value.connectionId || '') && /^[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+$/.test(value.base || '');
 const sameIdentity = (a, b) => a.connectionId === b.connectionId && a.base === b.base;
 
-export function createConnectionClient({ baseUrl = CONNECTION_BASE_URL, storage, fetchImpl } = {}) {
-  return async (action, payload = {}, { accessKey, pinIdentity = true, provider } = {}) => {
+export function createConnectionClient({ baseUrl, storage, fetchImpl, hasPermission, authentication = 'paired', signRequest = signConnectionRequest } = {}) {
+  return async (action, payload = {}, { accessKey, pinIdentity = true, provider, endpoint } = {}) => {
     if (!actions.has(action)) throw new SafeError('Unsupported connection operation.');
-    if (!baseUrl) {
+    const local = storage || chrome.storage.local;
+    const stored = await local.get(['connectionEndpoint', 'connectionAccessKey', 'collectionIdentity', 'connectionBaseUrl', 'connectionProvider', 'collectionArchives']);
+    const selectedUrl = endpoint !== undefined ? endpointValue(endpoint) : baseUrl !== undefined ? endpointValue(baseUrl) : storedEndpoint(stored);
+    if (!selectedUrl) {
       if (['health', 'sync', 'preferences'].includes(action)) return { ok: true, connected: false, enabled: false };
       if (action === 'pending') return { ok: true, pending: null };
       throw new SafeError('Configure a connection before updating linked records.');
     }
-    const target = parseConnectionUrl(baseUrl).baseUrl;
-    const local = storage || chrome.storage.local;
-    const stored = await local.get(['connectionAccessKey', 'collectionIdentity', 'connectionBaseUrl', 'connectionProvider', 'collectionArchives']);
-    const key = accessKey || stored.connectionAccessKey, identity = stored.collectionIdentity;
-    if (!validAccessKey(key)) throw new SafeError(key ? formatDiagnostic({ code: 'KEY_INVALID', stage: 'identity' }) : 'Enter the connection access key in Settings.');
-    if (!accessKey && stored.connectionBaseUrl && stored.connectionBaseUrl !== target) throw new SafeError('Connection address changed. Verify it and enter its access key again.');
+    const target = parseConnectionUrl(selectedUrl).baseUrl;
+    const allowed = hasPermission ? await hasPermission(endpointPermission(target)) : globalThis.chrome?.permissions?.contains ? await chrome.permissions.contains(endpointPermission(target)) : baseUrl !== undefined;
+    if (!allowed) throw new SafeError('Grant access to this connection host in Settings before connecting.');
+    const savedTarget = stored.connectionBaseUrl || '';
+    const switched = savedTarget && savedTarget !== target;
+    if (switched && stored.collectionIdentity) throw new SafeError('Disconnect the current collection before changing the connection address.');
+    const identity = stored.collectionIdentity;
+    let key;
+    if (authentication === 'bearer') {
+      key = accessKey || (!switched ? stored.connectionAccessKey : '');
+      if (!validAccessKey(key)) throw new SafeError(key ? formatDiagnostic({ code: 'KEY_INVALID', stage: 'identity' }) : 'Enter the connection access key in Settings.');
+    }
     const selectedProvider = provider || stored.connectionProvider || 'feishu';
     if (!['feishu', 'google'].includes(selectedProvider)) throw new SafeError('Invalid storage provider.');
     const body = JSON.stringify({ ...payload, provider: selectedProvider, ...(identity ? { expectedIdentity: identity } : {}) });
     if (new TextEncoder().encode(body).length > 20 * 1024 * 1024) throw new SafeError('Sync request exceeds 20 MiB.');
+    const authHeaders = authentication === 'bearer' ? { Authorization: `Bearer ${key}` } : await signRequest(target, `${target}v1/${action}`, body, local);
     let response;
     try {
       response = await (fetchImpl || fetch)(`${target}v1/${action}`, { method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body,
+        headers: { ...authHeaders, 'Content-Type': 'application/json' }, body,
         credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(180000) });
     } catch { throw new SafeError('Connection failed or timed out. Check its availability and HTTPS configuration.'); }
-    if (response.status === 401) throw new SafeError(formatDiagnostic({ code: 'KEY_INVALID', stage: 'identity' }));
+    if (response.status === 401) {
+      if (authentication !== 'bearer') { const { connectionPairings = {} } = await local.get('connectionPairings');
+        if (connectionPairings[target]) await local.set({ connectionPairings: { ...connectionPairings, [target]: { ...connectionPairings[target], status: 'unpaired' } } });
+      }
+      throw new SafeError(formatDiagnostic({ code: authentication === 'bearer' ? 'KEY_INVALID' : 'PAIR_REQUIRED', stage: 'identity' }));
+    }
     if (response.status === 403) throw new SafeError(formatDiagnostic({ code: 'ORIGIN_DENIED', stage: 'identity' }));
     const result = await readJsonResponse(response, 20 * 1024 * 1024);
     if (!response.ok || result.ok !== true) throw new SafeError(cleanDiagnostic(result.diagnostic) ? formatDiagnostic(result.diagnostic) : 'Connection operation failed. Check its authorization, permissions and private logs.');
@@ -61,7 +77,9 @@ export function createConnectionClient({ baseUrl = CONNECTION_BASE_URL, storage,
       }
     }
     if (!identity && pinIdentity) {
-      const archived = stored.collectionArchives?.[JSON.stringify(result.identity)];
+      const latest = await local.get(['connectionEndpoint', 'collectionIdentity']);
+      if ((endpoint === undefined && baseUrl === undefined && storedEndpoint(latest) !== target) || JSON.stringify(latest.collectionIdentity || null) !== JSON.stringify(identity || null)) throw new SafeError('Connection settings changed during the request. Retry.');
+      const archived = stored.collectionArchives?.[collectionArchiveKey(result.identity, target)];
       const current = (await local.get('items')).items || [];
       await local.set({ collectionIdentity: result.identity, ...(Array.isArray(archived) ? { items: [...archived, ...current.filter(item => !archived.some(old => old.id === item.id))] } : {}) });
     }

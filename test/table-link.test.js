@@ -57,9 +57,9 @@ test('authenticated browser round trip resolves share links and rejects inconsis
   const f = fixture(), runtime = f.create({ adapter: { ...f.adapter, resolveWikiNode: async token => ({ nodeToken: token, objType: 'bitable', objToken: 'baseTest' }) } });
   const baseUrl = 'https://connection.example.com/newsbridge/', local = { connectionAccessKey: 't'.repeat(43) };
   const handle = createHttpHandler({ baseUrl, connector: runtime, authenticate: async () => true });
-  const call = createConnectionClient({ baseUrl, storage: area(local), fetchImpl: (url, options) => handle(new Request(url, options)) });
+  const call = createConnectionClient({ authentication: 'bearer', baseUrl, storage: area(local), fetchImpl: (url, options) => handle(new Request(url, options)) });
   for (const tableUrl of [baseLink, wikiLink]) assert.equal((await call('health', { tableUrl })).resolvedTable.base, 'baseTest/tblTest');
-  const bad = createConnectionClient({ baseUrl, storage: area(local), fetchImpl: async () => Response.json({ ok: true, protocolVersion: 1, identity: { connectionId: 'test-user', base: 'baseTest/tblTest' }, connected: true, capabilities: { tableRead: true, tableWrite: true }, resolvedTable: { url: parseTableUrl(wikiLink).url, base: 'baseOther/tblOther', baseToken: 'baseOther', articleTableId: 'tblOther', source: 'wiki-node' } }) });
+  const bad = createConnectionClient({ authentication: 'bearer', baseUrl, storage: area(local), fetchImpl: async () => Response.json({ ok: true, protocolVersion: 1, identity: { connectionId: 'test-user', base: 'baseTest/tblTest' }, connected: true, capabilities: { tableRead: true, tableWrite: true }, resolvedTable: { url: parseTableUrl(wikiLink).url, base: 'baseOther/tblOther', baseToken: 'baseOther', articleTableId: 'tblOther', source: 'wiki-node' } }) });
   await assert.rejects(bad('health', { tableUrl: wikiLink }), /LINK_RESPONSE_INVALID/);
 });
 test('reference adapter uses the fixed read-only get_node endpoint and current app authorization', async () => {

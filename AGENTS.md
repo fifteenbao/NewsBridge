@@ -7,7 +7,7 @@
 - Read-only investigation, fixes within the accepted architecture, local tests, and documentation may proceed without repeated permission questions.
 - If a change cannot be completed within the accepted scope, explain the blocker and ask for the missing decision rather than silently expanding the architecture.
 - NewsBridge is a portable Chrome extension with an optional provider-neutral connection contract. Do not require a particular CLI, cloud provider, server OS, process manager, or agent product. Existing tools may implement the contract; never claim compatibility without testing their table and message capabilities.
-- Public defaults are offline with no host permissions. A private extension build may allow one exact HTTPS origin chosen by the operator. Keep real domains, identities and credentials out of source and public packages. Do not introduce listeners or infrastructure automatically.
+- Public defaults have no endpoint or granted host permissions. Users may configure an HTTPS endpoint in Settings: declare HTTPS hosts as optional and request only the chosen exact host from a user gesture. A private extension build may prefill one exact HTTPS origin chosen by the operator. Keep real domains, identities and credentials out of source and public packages. Do not introduce listeners or infrastructure automatically.
 - Agent-assisted setup should inspect capabilities, configure an existing connection, validate the contract, and report missing capabilities. It must not rewrite core source or silently deploy new services.
 
 ## Product boundaries

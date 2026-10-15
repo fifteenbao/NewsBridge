@@ -16,7 +16,7 @@
           <a id="nav-settings" href="#settings" data-i18n="settings">Settings</a>
         </nav>
         <div class="header-language"><label for="ui-language" data-i18n="interfaceLanguage">Interface language</label><select id="ui-language" aria-describedby="ui-language-hint"><option value="en">English</option><option value="zh">简体中文</option></select></div>
-        <p id="ui-language-hint" class="field-hint" data-i18n="interfaceHint">Saved on this device. This does not change the language of Feishu reminders.</p>
+        <p id="ui-language-hint" class="field-hint" data-i18n="interfaceHint">Changes the interface immediately. Save settings to use this language for reminders too.</p>
       </header>
       <section id="home" hidden>
         <div class="section-head"><h1 class="display-h" data-i18n="home">Home</h1></div>
@@ -37,36 +37,18 @@
         <section class="card">
           <h2 data-i18n="connection">Table connection</h2>
           <p class="card-note" data-i18n="connectionHint">Save locally, or connect your authorized table to sync your collection.</p>
-          <div class="field"><label class="field-label" for="provider" data-i18n="provider">Table provider</label><div class="field-control"><select id="provider" aria-describedby="provider-hint"><option value="feishu" data-i18n="feishuProvider">Feishu Bitable</option><option value="google" data-i18n="googleProvider">Google Sheets</option></select><p id="provider-hint" class="field-hint" data-i18n="providerHint">The connection service must configure the selected provider. Disconnect before switching a linked collection.</p><button type="button" id="disconnect" data-i18n="disconnect">Disconnect collection</button><p class="field-hint" data-i18n="disconnectHint">Keeps a local archive and remote data. Server reminders continue until paused in Settings.</p></div></div>
+          <div class="field"><div><label class="field-label" for="connectionUrl" data-i18n="connectionUrl">Connection service address</label><p id="endpoint-hint" class="field-hint" data-i18n="endpointHint">Enter your HTTPS service URL, including its application path. Check or Save asks Chrome to grant access to this host. Disconnect before changing an associated address.</p></div><div class="field-control"><input id="connectionUrl" type="url" autocomplete="off" spellcheck="false" aria-describedby="endpoint-hint endpoint-error" placeholder="https://connection.example.com/newsbridge/" /><p id="endpoint-error" role="status" aria-live="polite"></p></div></div>
+          <div class="pairing-guide"><p class="card-note" data-i18n="pairHint">No access key to enter. Click Pair and check, compare the fingerprint on the server, approve once, then click again to verify.</p><p id="pair-status" class="card-note" role="status" aria-live="polite"></p><code id="pair-fingerprint"></code><pre id="pair-command"></pre></div>
+          <div class="field"><label class="field-label" for="provider" data-i18n="provider">Table provider</label><div class="field-control"><select id="provider" aria-describedby="provider-hint"><option value="feishu" data-i18n="feishuProvider">Feishu Bitable</option><option value="google" data-i18n="googleProvider">Google Sheets</option></select><p id="provider-hint" class="field-hint" data-i18n="providerHint">The connection service must configure the selected provider. Disconnect before switching a linked collection.</p></div></div>
           <div class="field">
-            <div><label class="field-label" for="connectionAccessKey" data-i18n="accessKey">Connection access key</label><p class="field-hint" id="key-hint" data-i18n="keyHint">Get the dedicated NewsBridge key from whoever configured your connection service, or from its existing credential store.</p></div>
-            <div class="field-control"><input type="password" id="connectionAccessKey" aria-describedby="key-hint key-safety key-status key-validation" autocomplete="off" spellcheck="false" /></div>
-          </div>
-          <details class="key-guide">
-            <summary data-i18n="keyHow">Using the reference connection yourself?</summary>
-            <p class="card-note" data-i18n="keyInit">Run this command in the project folder on the machine running your connection, after preparing private/host.json:</p>
-            <pre><code>node examples/run.mjs init private/host.json</code></pre>
-            <p class="card-note" data-i18n="keyFile">Open access.key in your configured stateDir and paste its contents here. The example configuration uses private/state/access.key. Initialization preserves an existing key.</p>
-          </details>
-          <p id="key-safety" class="card-note" data-i18n="keySafety">Use the connection key here, not a provider App Secret, JSON private key or access token. Leave blank to keep a saved key. To rotate it, replace the host key, then enter and save the new key here. Reinstallation or another Chrome profile may require entering it again.</p>
-          <p id="key-status" class="card-note" role="status" aria-live="polite"></p>
-          <p id="key-validation" class="card-note" role="status" aria-live="polite"></p>
-          <div class="field">
-            <div><label class="field-label" for="tableUrl" data-i18n="tableLink">Feishu / Google Sheets link</label><p class="field-hint" id="table-url-hint" data-i18n="tableHint">Paste a Google Sheets link (gid selects the tab), or a Feishu /base/ or /wiki/ share link. Missing table= / gid uses the connected service’s configured table/tab in the same base/spreadsheet. Wiki links resolve when you check the connection.</p></div>
+            <div><label class="field-label" id="table-link-label" for="tableUrl" data-i18n="feishuLink">Feishu Bitable link</label><p class="field-hint" id="table-url-hint" data-i18n="feishuLinkHint">Paste a /base/ or /wiki/ share link. IDs are resolved automatically. Without table=, the service uses its configured table in the same base.</p></div>
             <div class="field-control"><input type="url" id="tableUrl" autocomplete="off" spellcheck="false" aria-describedby="table-url-hint table-url-error" /><p id="table-url-error" role="status" aria-live="polite"></p></div>
-          </div>
-          <div class="field">
-            <div><label class="field-label" for="baseToken" data-i18n="baseToken">Base token / Spreadsheet ID</label><p class="field-hint" id="base-hint" data-i18n="baseHint">Parsed from a Google /d/ or Feishu /base/ link; wiki links resolve on the server.</p></div>
-            <div class="field-control"><input type="text" id="baseToken" data-i18n-placeholder="idPlaceholder" placeholder="Paste a table link to fill automatically" aria-describedby="base-hint table-id-source" autocomplete="off" readonly /></div>
-          </div>
-          <div class="field">
-            <div><label class="field-label" for="articleTableId" data-i18n="tableId">Table ID</label><p class="field-hint" id="table-id-hint" data-i18n="tableIdHint">From table= or Google gid when present; otherwise from the verified connection’s configured table.</p></div>
-            <div class="field-control"><input type="text" id="articleTableId" data-i18n-placeholder="idPlaceholder" placeholder="Paste a table link to fill automatically" aria-describedby="table-id-hint table-id-source" autocomplete="off" readonly /></div>
           </div>
           <p id="table-id-source" class="card-note" role="status" aria-live="polite"></p>
           <div class="options-foot"><button class="save-btn" id="check-connection" data-i18n="check">Check connection / Retry</button><button class="save-btn" id="sync" disabled aria-describedby="sync-help" data-i18n="sync">Sync reading library</button></div>
           <p class="card-note" id="sync-help"></p>
           <p class="card-note" id="auth-status" role="status" aria-live="polite"></p>
+          <div class="options-foot"><button type="button" id="disconnect" data-i18n="disconnect">Disconnect collection</button></div><p class="field-hint" data-i18n="disconnectHint">Keeps a local archive and remote data. Server reminders continue until paused in Settings.</p>
           <h2 data-i18n="messages">Reading reminders</h2>
           <p class="card-note" data-i18n="reminderExplanation">Only daily reminders need a conversation ID. Saving and syncing either table provider work without one. A reminder never marks an item as read.</p>
           <div class="field">
@@ -80,10 +62,6 @@
             <div class="field-control"><input type="text" id="chatId" data-i18n-placeholder="chatPlaceholder" placeholder="Optional — configure on the connection for reminders" aria-describedby="chat-id-hint" autocomplete="off" readonly /></div>
           </div>
           <p class="card-note" id="schedule-note"></p>
-          <div class="field">
-            <div><label class="field-label" for="language" data-i18n="reminderLanguage">Reminder message language</label><p class="field-hint" id="reminder-language-hint" data-i18n="reminderLanguageHint">Changes Feishu reminder messages. Interface language is set separately above.</p></div>
-            <div class="field-control"><select id="language" aria-describedby="reminder-language-hint"><option value="en">English</option><option value="zh">简体中文</option></select></div>
-          </div>
         </section>
         <div class="options-foot"><button class="save-btn" id="save" data-i18n="save">Save settings</button><span class="saved-note" id="saved-note" role="status" data-i18n="saved">Saved</span></div>
         <section class="card" id="pending-card" hidden>

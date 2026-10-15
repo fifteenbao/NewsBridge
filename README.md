@@ -16,12 +16,14 @@ Use **Google Chrome 106 or later**. NewsBridge is installed by loading an unpack
 
 ### Connection settings
 
-Choose **Feishu Bitable / Google Sheets**. The service must configure the chosen provider first; see [self-hosting (Feishu / Google)](docs/SELF-HOSTING.md). **Disconnect collection** archives the current linked library and clears local credentials so another account/table/provider can be associated. Reconnecting the same identity restores its archive. Remote data and server jobs remain; pause reminders before disconnecting if desired.
+Enter your **HTTPS connection service address** in Settings. No source edit or per-server build is needed. Check / Save requests optional access only to that host. The host still needs the actual Chrome extension ID.
 
-Settings opens on first install, and is the default view until the connection is configured. Later, **right-click the NewsBridge icon → Settings**. Choose **English / 简体中文** for the interface; Feishu reminder language is set separately.
+Choose **Feishu Bitable / Google Sheets**. The service must configure the chosen provider first; see [self-hosting (Feishu / Google)](docs/SELF-HOSTING.md). **Disconnect collection** archives the current linked library and clears the active local association so another account/table/provider can be associated. Reconnecting the same identity restores its archive. Remote data and server jobs remain; pause reminders before disconnecting if desired.
 
-- **Connection key:** get it from your connection operator. For the reference implementation, run initialization and read `stateDir/access.key` (the example uses `private/state/access.key`). Acquisition steps are also shown on the page.
-- **Table link:** paste a Google Sheets link (Spreadsheet ID + optional gid), or a Feishu `/base/…` or `/wiki/…` share link. Direct links with `table=tbl…` fill both IDs immediately. Without `table=`, use the verified connection’s configured table in the same base; wiki links resolve through the connection during the check. **Check connection** verifies the target and fields; **Save settings** stores the key and preferences.
+Settings opens on first install, and is the default view until the connection is configured. Later, **right-click the NewsBridge icon → Settings**. Choose **English / 简体中文** for the interface; Save settings to apply the header language to reminders too.
+
+- **Browser pairing:** no access key to enter. Click Pair and check, have the server operator confirm the displayed fingerprint once, then check again and save. See [pairing](docs/PAIRING.md).
+- **Table link:** paste a Google Sheets link (Spreadsheet ID + optional gid), or a Feishu `/base/…` or `/wiki/…` share link. Direct links with `table=tbl…` fill both IDs immediately. Without `table=`, use the verified connection’s configured table in the same base; wiki links resolve through the connection during the check. **Check connection** verifies the target and fields; **Save settings** stores the connection and preferences.
 - **Reminder conversation ID:** returned by the connection service, cannot be derived from a table link, and is needed only for daily reminders. Table sync works without it.
 
 The connected build and host authorization are required for sync; offline builds save locally. A parsed link grants no access and cannot silently switch an existing collection to another table. See [startup order and runnable reference](SETUP.md#runnable-reference-and-startup-order--可运行参考与启动顺序).
@@ -61,7 +63,7 @@ For the extension package, the selected directory should look like this:
 
 Open an ordinary HTTPS article or video, click the NewsBridge icon, then choose **Save this page**. A green ✓ confirms capture; a ! indicates an error. The menu also opens **Home / Collection / Settings**. Without a configured connection the default view opens Settings; the header offers navigation and language switching. Collection shows unread items only. Choose **Read** or **Skip** to clear an item from this list; skipping preserves the record and excludes daily reminders. Linked items can be restored by changing their Feishu state to 待阅读 and syncing. Chrome internal pages cannot be captured.
 
-The default package works locally with **no host permissions, connection key, or background service**. Feishu synchronization and daily reminders need a separate connection setup; follow [Setup](SETUP.md) or give your agent the [agent setup instructions](docs/AGENT-SETUP.md). Saving a video captures its page title and link, not its video file or transcript.
+The default package works locally with **no granted host permissions, connection key, or background service**. Feishu synchronization and daily reminders need a separate connection setup; follow [Setup](SETUP.md) or give your agent the [agent setup instructions](docs/AGENT-SETUP.md). Saving a video captures its page title and link, not its video file or transcript.
 
 ### Build a package from source (optional)
 
@@ -84,7 +86,7 @@ This creates the loadable directory `dist/newsbridge/`, archive `dist/newsbridge
 
 Table sync is optional. NewsBridge defines a connection contract; it does not require a particular command-line tool, cloud provider, server OS, or agent product.
 
-An agent can inspect your existing environment, implement the contract using an authorized table connection, and generate a private extension build for its HTTPS base URL, including an optional application path. A tool that can send chat messages is not necessarily able to read/write Bitable: these capabilities must be verified separately.
+An agent can inspect your existing environment, implement the contract using an authorized table connection, and enter its HTTPS base URL in Settings, including an optional application path. A tool that can send chat messages is not necessarily able to read/write Bitable: these capabilities must be verified separately.
 
 - [Self-hosting](docs/SELF-HOSTING.md): Feishu / Google credentials, HTTPS service, profile switching and custom reminders.
 - [Setup](SETUP.md): installation and environment checks.
@@ -138,7 +140,7 @@ npm run security
 npm run build
 ```
 
-No npm runtime dependencies. The connection module takes an adapter, durable storage and a lock from the host environment; it starts no listener or scheduler. Public extension builds contain only the manifest, browser code, icons and license. Real domains and credentials belong in private configuration and private builds, not published releases.
+No npm runtime dependencies. The connection module takes an adapter, durable storage and a lock from the host environment; it starts no listener or scheduler. Public extension builds contain only the manifest, browser code, icons and license. Real addresses belong in Chrome-local settings and private host configuration; credentials never belong in public source or release packages.
 
 See [security boundaries](SECURITY.md), [architecture](docs/ARCHITECTURE.md), and [related projects](docs/RELATED-PROJECTS.md). Tests use mocked Feishu operations and do not prove compatibility with an untested third-party tool or deployment.
 

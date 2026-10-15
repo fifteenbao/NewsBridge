@@ -235,3 +235,14 @@ preferences 新增可选 reminderTime（HH:mm）、timeZone（IANA）；health �
 Disconnect is a Chrome-local atomic archive/reset. It does not clear server state, pending deliveries, revoke credentials or delete remote data. Reassociation pins a newly verified identity and restores only its matching archive. The frontend permits re-association on the same preconfigured HTTPS host; changing origins still needs private packaging.
 
 取消关联是 Chrome 本机的原子归档／重置，不删除服务端状态、未确认消息、授权或远端数据；重新关联后只恢复匹配身份的归档。跨 HTTPS 域名仍需重新生成私人扩展包。
+
+
+## Settings endpoint / 设置页连接地址
+
+CONNECTION_BASE_URL is an optional prefilled fallback, empty in public source. Settings persists connectionEndpoint in Chrome-local storage. The public package declares optional HTTPS hosts and asks for only the selected host on Check/Save; the client verifies permission before sending. CSP permits HTTPS transport, while URL validation, granted host permission and the saved endpoint constrain the service route. Changing the endpoint requires disconnect/reassociation and a new key. This does not remove service-side extensionId or credential verification. HTTP localhost is not supported by this transport. A private build can still prefill an endpoint and keep its required fixed-origin permission, which cannot be revoked at runtime.
+
+CONNECTION_BASE_URL 仅为可选预填默认值，公开源码留空。设置页将地址保存为 Chrome 本机 connectionEndpoint，检查／保存时按具体 HTTPS 主机申请可选权限，发送前再校验授权。CSP 允许 HTTPS，地址校验、实际主机授权与已保存地址限定服务路由。换地址需取消关联并使用新密钥，不取消服务端 extensionId 校验或认证；仍不支持 HTTP localhost。私人固定地址包的必需域名权限无法运行时撤销。
+
+The only language selector is in the header. It updates UI immediately; Save settings sends that same language through the existing preferences operation for reminders. Parsed table IDs remain internal: provider and its adjacent link input determine the match, then host identity/schema validation confirms authorization.
+
+只保留页眉语言选择，界面立即变化，保存设置时通过现有 preferences 将相同语言用于提醒。解析出的表格 ID 只在内部使用，不显示为输入项；类型及紧邻的链接输入确定目标，最终由宿主身份与字段检查验证授权。

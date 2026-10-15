@@ -5,13 +5,14 @@ import { parseConnectionUrl } from '../src/lib/connection-url.js';
 
 // Mount this Fetch Request/Response handler in an existing HTTPS environment.
 // It creates no listener, process, credentials, deployment or scheduler.
-export function createHttpHandler({ baseUrl, extensionId, authenticate, connector, maxBytes = 20 * 1024 * 1024 }) {
+export function createHttpHandler({ baseUrl, extensionId, authenticate, connector, pairing, maxBytes = 20 * 1024 * 1024 }) {
   const target = parseConnectionUrl(baseUrl);
   if ((extensionId && !/^[a-p]{32}$/.test(extensionId)) || typeof authenticate !== 'function' || typeof connector?.dispatch !== 'function') {
     throw new SafeError('Configure an HTTPS base URL, extension ID and authentication verifier.');
   }
   const expectedOrigin = extensionId ? `chrome-extension://${extensionId}` : null;
-  const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences']);
+  const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences', ...(pairing ? ['pair'] : [])]);
+  const allowedHeaders = pairing ? ['content-type', 'x-newsbridge-pair', 'x-newsbridge-time', 'x-newsbridge-nonce', 'x-newsbridge-signature'] : ['authorization', 'content-type'];
   let active = 0;
   return async request => {
     const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
@@ -28,22 +29,35 @@ export function createHttpHandler({ baseUrl, extensionId, authenticate, connecto
     if (expectedOrigin && originHeader === expectedOrigin) { headers['Access-Control-Allow-Origin'] = originHeader; headers.Vary = 'Origin'; }
     if (request.method === 'OPTIONS') {
       if (!expectedOrigin || originHeader !== expectedOrigin || request.headers.get('Access-Control-Request-Method') !== 'POST' ||
-          (request.headers.get('Access-Control-Request-Headers') || '').split(',').some(key => key.trim() && !['authorization', 'content-type'].includes(key.trim().toLowerCase()))) {
+          (request.headers.get('Access-Control-Request-Headers') || '').split(',').some(key => key.trim() && !allowedHeaders.includes(key.trim().toLowerCase()))) {
         return send(403, { ok: false, error: 'Invalid preflight.' });
       }
-      headers['Access-Control-Allow-Methods'] = 'POST'; headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type';
+      headers['Access-Control-Allow-Methods'] = 'POST'; headers['Access-Control-Allow-Headers'] = allowedHeaders.join(', ');
       return send(204, null);
     }
     if (request.method !== 'POST') return send(405, { ok: false, error: 'POST required.' });
-    if (!/^Bearer [A-Za-z0-9_-]{32,512}$/.test(request.headers.get('Authorization') || '')) return send(401, { ok: false, error: 'Access key required.' });
-    try { if (await authenticate(request) !== true) return send(401, { ok: false, error: 'Access denied.' }); }
-    catch { return send(401, { ok: false, error: 'Access denied.' }); }
+    if (!pairing && !/^Bearer [A-Za-z0-9_-]{32,512}$/.test(request.headers.get('Authorization') || '')) return send(401, { ok: false, error: 'Access key required.' });
     if ((request.headers.get('Content-Type') || '').split(';')[0].trim() !== 'application/json' || request.headers.has('Content-Encoding')) {
       return send(415, { ok: false, error: 'Uncompressed JSON required.' });
     }
     if (active >= 2) return send(429, { ok: false, error: 'Connection busy. Retry later.' });
     active++;
     try {
+      if (action === 'pair') {
+        if (!expectedOrigin || originHeader !== expectedOrigin) return send(403, { ok: false, error: 'Register the extension before pairing.' });
+        return send(200, await pairing.request(await readJsonResponse(request, 4096)));
+      }
+      if (!pairing) {
+        if (!/^Bearer [A-Za-z0-9_-]{32,512}$/.test(request.headers.get('Authorization') || '')) return send(401, { ok: false, error: 'Access key required.' });
+        try { if (await authenticate(request) !== true) return send(401, { ok: false, error: 'Access denied.' }); }
+        catch { return send(401, { ok: false, error: 'Access denied.' }); }
+      } else {
+        if (!request.headers.has('X-NewsBridge-Signature')) return send(401, { ok: false, diagnostic: { code: 'PAIR_REQUIRED', stage: 'identity' } });
+        const body = await readJsonResponse(request.clone(), maxBytes);
+        try { if (await authenticate(request) !== true) return send(401, { ok: false, diagnostic: { code: 'PAIR_REQUIRED', stage: 'identity' } }); }
+        catch { return send(401, { ok: false, diagnostic: { code: 'PAIR_REQUIRED', stage: 'identity' } }); }
+        return send(200, await connector.dispatch(action, body));
+      }
       const body = await readJsonResponse(request, maxBytes);
       return send(200, await connector.dispatch(action, body));
     } catch (error) { return send(400, { ok: false, error: safeErrorMessage(error), diagnostic: cleanDiagnostic(error?.diagnostic) }); }

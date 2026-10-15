@@ -6,7 +6,7 @@ import { formatDiagnostic } from '../src/lib/diagnostics.js';
 import { area, event } from '../test-support/chrome-mock.js';
 
 // Interaction test against the real options module; no visual/browser claim.
-test('settings show saved-key metadata, live table states, disabled sync, reminder preference and 401/403 guidance', async t => {
+test('settings pair with approval, use one language selector and group provider links without parsed-ID inputs', async t => {
   const original = { chrome: globalThis.chrome, document: globalThis.document, location: globalThis.location, addEventListener: globalThis.addEventListener };
   const viewEvents = {}; globalThis.addEventListener = (name, fn) => { viewEvents[name] = fn; };
   t.after(() => Object.assign(globalThis, original));
@@ -29,19 +29,21 @@ test('settings show saved-key metadata, live table states, disabled sync, remind
   }
   globalThis.document = { documentElement: { lang: 'en' }, querySelectorAll: selector => translatable.filter(node => node.getAttribute(selector.slice(1, -1))), getElementById: el, createElement: () => new Element(), createElementNS: () => new Element(), createTextNode: text => text };
   globalThis.location = { hash: '' };
-  let connected = false, saved = false, provider = 'feishu', lastSaved, calls = [];
-  const local = { items: [
+  let operatorApproved = false, permissionGranted = true, connected = false, saved = false, provider = 'feishu', lastSaved, calls = [];
+  const local = { connectionEndpoint: 'https://connection.example.com/newsbridge/', items: [
     { id: 'unread', title: 'Unread', url: 'https://example.com/a', read: false, savedAt: '2026-10-14T00:00:00Z' },
     { id: 'read', title: 'Read', url: 'https://example.com/b', read: true, status: '已读', savedAt: '2026-10-14T00:00:00Z' },
     { id: 'skip', title: 'Skip', url: 'https://example.com/c', read: true, status: '跳过', savedAt: '2026-10-14T00:00:00Z' },
   ] };
   const status = () => ({ ok: true, connected, protocolVersion: 1, configuration: { storageProvider: provider, baseToken: provider === 'google' ? 'sheet_Test-1' : 'baseTest', articleTableId: provider === 'google' ? '0' : 'tblTest', reminderTime: lastSaved?.reminderTime || '10:00', chatId: 'oc_reminders', remindersAvailable: true, remindersEnabled: lastSaved?.remindersEnabled ?? true, timeZone: 'Asia/Shanghai', language: lastSaved?.language || 'en' } });
   globalThis.chrome = {
+    permissions: { request: async () => permissionGranted, contains: async () => true, remove: async () => true },
     storage: { local: area(local), onChanged: event() },
     i18n: { getUILanguage: () => 'en-US' },
     runtime: { getManifest: () => ({ version }), sendMessage: async message => {
       calls.push(message);
-      if (message.type === 'KEY_STATUS') return { ok: true, saved, savedAt: saved ? '2026-10-14T00:00:00Z' : null, matchesEndpoint: saved };
+      if (message.type === 'PAIR_STATUS') return { ok: true, approved: saved, status: saved ? 'approved' : 'unpaired', baseUrl: local.connectionEndpoint || '' };
+      if (message.type === 'PAIR_REQUEST') return { ok: true, status: operatorApproved ? 'approved' : 'pending', fingerprint: 'f'.repeat(64), pairId: 'a'.repeat(36) };
       if (message.type === 'VALIDATE_CONNECTION') {
         if (message.accessKey === 'bad') return { ok: false, error: formatDiagnostic({ code: 'KEY_INVALID', stage: 'identity' }) };
         if (message.accessKey === 'wrong-origin') return { ok: false, error: formatDiagnostic({ code: 'ORIGIN_DENIED', stage: 'identity' }) };
@@ -51,10 +53,10 @@ test('settings show saved-key metadata, live table states, disabled sync, remind
         if (message.tableUrl?.includes('/wiki/')) result.resolvedTable = { url: parseTableUrl(message.tableUrl).url, baseToken: 'baseTest', articleTableId: 'tblTest', base: 'baseTest/tblTest', source: 'wiki-node' };
         return result;
       }
-      if (message.type === 'DISCONNECT') { connected = false; saved = false; local.items = []; return { ok: true }; }
+      if (message.type === 'DISCONNECT') { connected = false; saved = false; local.items = []; local.connectionEndpoint = ''; return { ok: true }; }
       if (message.type === 'CONNECTION_STATUS') return status();
       if (message.type === 'PENDING') return { ok: true, pending: null };
-      if (message.type === 'SAVE_SETTINGS') { saved = true; lastSaved = message.settings; return { ok: true, settings: lastSaved }; }
+      if (message.type === 'SAVE_SETTINGS') { saved = true; lastSaved = message.settings; local.connectionEndpoint = lastSaved.connectionUrl; return { ok: true, settings: lastSaved }; }
       return { ok: true };
     } },
   };
@@ -66,35 +68,31 @@ test('settings show saved-key metadata, live table states, disabled sync, remind
   location.hash = '#reading-list'; viewEvents.hashchange();
   assert.equal(el('settings').hidden, true); assert.equal(el('reading-list').hidden, false);
   location.hash = '#settings'; viewEvents.hashchange();
-  assert.match(el('key-status').textContent, /No key saved/); assert.equal(el('sync').disabled, true);
+  assert.match(el('pair-status').textContent, /Not paired/); assert.equal(el('sync').disabled, true);
   assert.ok(el('connection-meta').textContent.includes(version));
+  assert.equal(el('table-link-label').textContent, 'Feishu Bitable link');
   el('tableUrl').value = 'https://workspace.feishu.cn/base/baseTest?table=tblTest'; el('tableUrl').listeners.input();
   assert.match(el('table-url-error').textContent, /Format valid/);
-  assert.equal(el('baseToken').value, 'baseTest'); assert.equal(el('articleTableId').value, 'tblTest');
   assert.equal(el('chatId').value, '');
   el('tableUrl').value = 'invalid'; el('tableUrl').listeners.input();
-  assert.equal(el('baseToken').value, ''); assert.equal(el('articleTableId').value, '');
   el('tableUrl').value = 'https://workspace.feishu.cn/base/baseTest?table=tblTest'; el('tableUrl').listeners.input();
-  el('connectionAccessKey').value = 'good'; el('connectionAccessKey').listeners.input(); el('connectionAccessKey').listeners.blur(); await drain();
+  await el('check-connection').listeners.click(); assert.match(el('pair-status').textContent, /Waiting for server/); assert.match(el('pair-command').textContent, /pair-approve/);
+  operatorApproved = true; await el('check-connection').listeners.click();
   assert.match(el('table-url-error').textContent, /Matches server configuration/);
   assert.equal(el('chatId').value, 'oc_reminders');
   el('tableUrl').value = 'https://workspace.feishu.cn/base/baseOther?table=tblOther'; el('tableUrl').listeners.input();
-  assert.equal(el('baseToken').value, 'baseOther'); assert.equal(el('articleTableId').value, 'tblOther');
   assert.equal(el('chatId').value, 'oc_reminders');
   assert.match(el('table-url-error').textContent, /Does not match/);
   el('tableUrl').value = 'https://workspace.feishu.cn/base/baseTest?table=tblTest'; el('tableUrl').listeners.input();
   assert.equal(saved, false); assert.equal(el('sync').disabled, true);
   await el('save').listeners.click(); await drain();
-  assert.match(el('key-status').textContent, /Key saved/); assert.equal(el('sync').disabled, false);
+  assert.match(el('pair-status').textContent, /Browser paired/); assert.equal(el('sync').disabled, false);
   el('tableUrl').value = 'https://my.feishu.cn/base/baseTest?from=from_copylink'; el('tableUrl').listeners.input();
-  assert.equal(el('baseToken').value, 'baseTest'); assert.equal(el('articleTableId').value, 'tblTest');
   assert.match(el('table-id-source').textContent, /configured table in the same base/);
   el('tableUrl').value = 'https://my.feishu.cn/wiki/wikiTest?from=from_copylink'; el('tableUrl').listeners.input();
-  assert.equal(el('baseToken').value, ''); assert.equal(el('articleTableId').value, ''); assert.equal(el('sync').disabled, true);
   assert.match(el('table-url-error').textContent, /Check the connection/);
   await el('check-connection').listeners.click();
   assert.equal(calls.findLast(message => message.type === 'VALIDATE_CONNECTION').tableUrl, 'https://my.feishu.cn/wiki/wikiTest');
-  assert.equal(el('baseToken').value, 'baseTest'); assert.equal(el('articleTableId').value, 'tblTest');
   assert.equal(el('sync').disabled, false);
   el('tableUrl').value = 'https://my.feishu.cn/wiki/wikiDoc'; el('tableUrl').listeners.input();
   await el('check-connection').listeners.click();
@@ -102,39 +100,37 @@ test('settings show saved-key metadata, live table states, disabled sync, remind
   el('tableUrl').value = 'https://workspace.feishu.cn/base/baseTest?table=tblTest'; el('tableUrl').listeners.input();
   await el('check-connection').listeners.click();
   const beforeLanguageChange = calls.length;
-  el('language').value = 'zh'; el('language').listeners.change();
   el('ui-language').value = 'zh'; await el('ui-language').listeners.change();
   assert.equal(document.documentElement.lang, 'zh'); assert.equal(local.uiLanguage, 'zh');
   assert.equal(calls.length, beforeLanguageChange);
-  assert.equal(el('language').value, 'zh');
-  assert.equal(el('check-connection').textContent, '检查连接 / 重试');
-  assert.match(el('key-status').textContent, /已保存密钥/);
+  await el('save').listeners.click(); assert.equal(lastSaved.language, 'zh');
+  assert.equal(el('check-connection').textContent, '配对并检查 / 重试');
+  assert.match(el('pair-status').textContent, /已配对/);
   assert.match(el('table-url-error').textContent, /与连接配置一致/);
   assert.match(el('chatId').getAttribute('placeholder'), /需要提醒/);
-  assert.match(el('baseToken').getAttribute('placeholder'), /自动填写/);
   assert.match(el('schedule-note').textContent, /连接端状态/);
   el('ui-language').value = 'en'; await el('ui-language').listeners.change();
-  assert.equal(el('language').value, 'zh'); assert.equal(document.documentElement.lang, 'en');
-  assert.equal(el('check-connection').textContent, 'Check connection / Retry');
+  assert.equal(el('check-connection').textContent, 'Pair and check / Retry');
+  await el('save').listeners.click(); assert.equal(lastSaved.language, 'en');
   el('remindersEnabled').checked = false; el('remindersEnabled').listeners.change(); await el('save').listeners.click();
   assert.equal(lastSaved.remindersEnabled, false);
-  for (const [key, code] of [['bad','KEY_INVALID'], ['wrong-origin','ORIGIN_DENIED']]) {
-    el('connectionAccessKey').value = key; el('connectionAccessKey').listeners.input(); el('connectionAccessKey').listeners.blur(); await drain();
-    assert.match(el('key-validation').textContent, new RegExp(code)); assert.equal(el('sync').disabled, true);
-    assert.equal(el('baseToken').value, 'baseTest');
-    assert.equal(el('articleTableId').value, 'tblTest');
-    assert.equal(el('chatId').value, '');
-  }
   assert.ok(calls.some(c => c.type === 'VALIDATE_CONNECTION'));
   await el('disconnect').listeners.click(); assert.equal(el('provider').disabled, false); assert.match(el('list-count').textContent, /0/);
+  el('connectionUrl').value = 'https://connection.example.com/newsbridge/';
   el('provider').value = 'google'; el('provider').listeners.change();
+  assert.equal(el('table-link-label').textContent, 'Google Sheets link');
   el('tableUrl').value = 'https://docs.google.com/spreadsheets/d/sheet_Test-1/edit#gid=0'; el('tableUrl').listeners.input();
-  el('connectionAccessKey').value = 'good'; await el('check-connection').listeners.click();
+  await el('check-connection').listeners.click();
   assert.equal(calls.findLast(c => c.type === 'VALIDATE_CONNECTION').provider, 'google');
-  assert.equal(el('baseToken').value, 'sheet_Test-1'); assert.equal(el('articleTableId').value, '0'); assert.equal(el('provider').disabled, true);
   el('reminderTime').value = '08:45'; el('reminderTime').listeners.change(); el('timeZone').value = 'Europe/London'; el('timeZone').listeners.change();
   await el('save').listeners.click(); assert.equal(lastSaved.provider, 'google'); assert.equal(lastSaved.reminderTime, '08:45'); assert.equal(lastSaved.timeZone, 'Europe/London');
   assert.match(el('schedule-note').textContent, /08:45/);
   el('reminderTime').value = '25:00'; await el('save').listeners.click(); assert.equal(el('reminderTime').attrs['aria-invalid'], 'true');
+  assert.equal(el('connectionUrl').value, 'https://connection.example.com/newsbridge/');
+  el('connectionUrl').value = 'https://other.example.com/library/'; el('connectionUrl').listeners.input();
+  assert.equal(el('sync').disabled, true);
+  permissionGranted = false; const beforeDenied = calls.length; await el('check-connection').listeners.click();
+  assert.equal(calls.length, beforeDenied); assert.match(el('auth-status').textContent, /not granted/);
+  el('connectionUrl').value = 'http://example.com/'; el('connectionUrl').listeners.input(); assert.equal(el('connectionUrl').attrs['aria-invalid'], 'true');
 
 });

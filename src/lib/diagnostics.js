@@ -1,5 +1,6 @@
 import { SafeError } from './security.js';
 export const messages = Object.freeze({
+  PAIR_REQUIRED: 'Browser pairing is missing, revoked or invalid. Pair again and ask the operator to confirm the fingerprint.',
   LINK_RESOLVER_UNAVAILABLE: 'The connection adapter cannot resolve wiki links. Add its read-only wiki resolver or use a direct /base/ link.',
   LINK_NOT_BITABLE: 'This wiki node is not a Bitable. Paste a link to a Bitable node.',
   LINK_RESPONSE_INVALID: 'The table-link resolver returned an invalid or mismatched result.',

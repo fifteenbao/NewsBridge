@@ -6,6 +6,7 @@ import { createConnector, dueDate } from '../connector/runtime.js';
 import { createConnectionClient } from '../src/lib/connection.js';
 import { parseTableUrl } from '../src/lib/table-url.js';
 import { area } from '../test-support/chrome-mock.js';
+import { collectionArchiveKey } from '../src/lib/endpoint.js';
 import { disconnectCollection } from '../src/lib/storage.js';
 import { writeProbe } from '../examples/write-probe.js';
 const email = 'test@example-project.iam.gserviceaccount.com';
@@ -91,18 +92,18 @@ test('custom schedule persists across runtime restart and rejects impossible val
 });
 test('disconnect archives data, clears keys, switches provider and restores only matching collection', async t => {
   const before = globalThis.chrome; t.after(() => { globalThis.chrome = before; });
-  const old = { connectionId: 'app:cli_Test', base: 'baseTest/tblTest' }, values = { items: [{ id: 'old', url: 'https://example.com/a' }], collectionIdentity: old, connectionAccessKey: 't'.repeat(43) };
+  const old = { connectionId: 'app:cli_Test', base: 'baseTest/tblTest' }, values = { items: [{ id: 'old', url: 'https://example.com/a' }], collectionIdentity: old, connectionEndpoint: 'https://connection.example.com/newsbridge/', connectionAccessKey: 't'.repeat(43) };
   const storage = area(values); globalThis.chrome = { storage: { local: storage } };
   await disconnectCollection(); assert.deepEqual(values.items, []); assert.equal(values.connectionAccessKey, '');
-  assert.equal(values.collectionArchives[JSON.stringify(old)][0].id, 'old');
+  assert.equal(values.collectionArchives[collectionArchiveKey(old, 'https://connection.example.com/newsbridge/')][0].id, 'old');
   const identity = { connectionId: config.connectionId, base: 'sheet_Test-1/0' };
-  const client = createConnectionClient({ baseUrl: 'https://connection.example.com/newsbridge/', storage, fetchImpl: async (_url, request) => {
+  const client = createConnectionClient({ authentication: 'bearer', baseUrl: 'https://connection.example.com/newsbridge/', storage, fetchImpl: async (_url, request) => {
     assert.equal(JSON.parse(request.body).provider, 'google');
     return new Response(JSON.stringify({ ok: true, protocolVersion: 1, identity, connected: true, capabilities: { tableRead: true, tableWrite: true }, configuration: { storageProvider: 'google' } }));
   } });
   await client('health', {}, { accessKey: 't'.repeat(43), provider: 'google' }); assert.deepEqual(values.items, []);
   await disconnectCollection();
-  const restore = createConnectionClient({ baseUrl: 'https://connection.example.com/newsbridge/', storage, fetchImpl: async () => new Response(JSON.stringify({ ok: true, protocolVersion: 1, identity: old, connected: true, capabilities: { tableRead: true, tableWrite: true } })) });
+  const restore = createConnectionClient({ authentication: 'bearer', baseUrl: 'https://connection.example.com/newsbridge/', storage, fetchImpl: async () => new Response(JSON.stringify({ ok: true, protocolVersion: 1, identity: old, connected: true, capabilities: { tableRead: true, tableWrite: true } })) });
   await restore('health', {}, { accessKey: 't'.repeat(43), provider: 'feishu' }); assert.equal(values.items[0].id, 'old');
 });
 

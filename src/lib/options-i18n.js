@@ -2,6 +2,9 @@ import { messages as diagnosticMessages } from './diagnostics.js';
 
 export const translations = {
   en: {
+    feishuLink: 'Feishu Bitable link', googleLink: 'Google Sheets link', feishuLinkHint: 'Paste a /base/ or /wiki/ share link. IDs are resolved automatically. Without table=, the service uses its configured table in the same base.', googleLinkHint: 'Paste your Google Sheets link. Spreadsheet and tab IDs are resolved automatically; without gid, the service uses its configured tab.', providerLinkMismatch: 'This link does not match the selected table provider.',
+    pairHint: 'No access key to enter. Click Pair and check, compare the fingerprint on the server, approve once, then click again to verify.', pairApproved: 'Browser paired · Signed requests enabled', pairPending: 'Waiting for server approval · Compare this fingerprint before approving', pairUnpaired: 'Not paired · Local capture is available', pairFingerprint: 'Fingerprint: {fingerprint}',
+    connectionUrl: 'Connection service address', endpointHint: 'Enter your HTTPS service URL, including its application path. Check or Save asks Chrome to grant access to this host. Disconnect before changing an associated address.', permissionDenied: 'Chrome access was not granted. Local captures remain available.',
     feishuProvider: 'Feishu Bitable', googleProvider: 'Google Sheets', provider: 'Table provider', providerHint: 'The connection service must configure the selected provider. Disconnect before switching a linked collection.', disconnect: 'Disconnect collection', disconnectHint: 'Keeps a local archive and remote data. Server reminders continue until paused in Settings.', reminderTime: 'Daily reminder time', timeZone: 'Timezone (IANA)',
     home: 'Home', collection: 'Collection', unreadCollection: 'Unread collection',
     homeGuide: 'Open an article or video, click NewsBridge and choose Save this page. Your collection shows unread items; mark them read or skip them when done.',
@@ -11,9 +14,9 @@ export const translations = {
 
     lede: 'Save articles and videos worth your time. Organize your collection in Feishu Bitable or Google Sheets.',
     readingList: 'Reading list', settings: 'Settings', interfaceLanguage: 'Interface language',
-    interfaceHint: 'Saved on this device. This does not change the language of Feishu reminders.',
+    interfaceHint: 'Changes the interface immediately. Save settings to use this language for reminders too.',
     connection: 'Table connection', connectionHint: 'Save locally, or connect your authorized table to sync your collection.',
-    accessKey: 'Connection access key', keyHint: 'Get the dedicated NewsBridge key from whoever configured your connection service, or from its existing credential store.',
+    accessKey: 'Connection access key', keyHint: 'Required for service sync; not needed for local capture. Get the dedicated NewsBridge key from your connection operator or its credential store.',
     keyHow: 'Using the reference connection yourself?',
     keyInit: 'Run this command in the project folder on the machine running your connection, after preparing private/host.json:',
     keyFile: 'Open access.key in your configured stateDir and paste its contents here. The example configuration uses private/state/access.key. Initialization preserves an existing key.',
@@ -24,8 +27,8 @@ export const translations = {
     baseToken: 'Base token / Spreadsheet ID', baseHint: 'Parsed from a Google /d/ or Feishu /base/ link; wiki links resolve on the server.',
     tableId: 'Table ID', tableIdHint: 'From table= or Google gid when present; otherwise from the verified connection’s configured table.',
     idPlaceholder: 'Paste a table link to fill automatically',
-    idsParsed: 'IDs parsed from your link; access is not yet verified.', idsVerified: 'IDs parsed from your link and matched to the connection.',
-    idsServer: 'Showing the authorized table returned by the connection. Paste its direct link to compare.', idsEmpty: 'Spreadsheet/base and tab/table IDs fill from the table link. A table link cannot provide a conversation ID.',
+    idsParsed: 'Link format valid; access is not yet verified.', idsVerified: 'The link matches the connection target.',
+    idsServer: 'Using the server-authorized table; paste its link to verify.', idsEmpty: 'IDs resolve automatically from your table link. A conversation ID is configured separately.',
     tableEmpty: 'Paste a Feishu / Google table link to compare it with the connection target.',
     basePending: 'Base ID parsed · Check the connection to fill its configured Table ID.',
     wikiPending: 'Valid wiki link · Check the connection to resolve the Bitable. Wiki read permission is required.',
@@ -34,8 +37,8 @@ export const translations = {
     tableFormat: 'Format valid · Server match and access not checked.',
     tableMismatch: 'Format valid · Does not match the server-authorized table.',
     tableVerified: 'Format valid · Matches server configuration · Read access and eight fields verified. Write access needs the explicit host self-test.',
-    check: 'Check connection / Retry', sync: 'Sync reading library', syncReady: 'Connection checked. Sync uploads new captures and refreshes table status.',
-    syncUnavailable: 'Sync is unavailable: check the connection, match the table, and save the key first.',
+    check: 'Pair and check / Retry', sync: 'Sync reading library', syncReady: 'Connection checked. Sync uploads new captures and refreshes table status.',
+    syncUnavailable: 'Sync is unavailable: check the connection, match the table, and complete browser pairing first.',
     connected: 'Connected · Identity, read access and eight table fields verified.',
     disconnected: 'Not connected. Local captures remain available; a connected build and authorized host are required for table sync.',
     checking: 'Checking connection…', keyAccepted: 'Key accepted · Save settings to store this key.', savedKeyAccepted: 'Saved key accepted.', keyNotChecked: 'Not checked · Leave this field to validate without saving.',
@@ -58,6 +61,9 @@ export const translations = {
     tableWiki: 'Wiki links resolve through the connection service during Check connection.', tableMissingId: 'Use a /base/ or /wiki/ link; if table= is present it must contain one valid Table ID.',
   },
   zh: {
+    feishuLink: '飞书多维表格链接', googleLink: 'Google 表格链接', feishuLinkHint: '粘贴 /base/ 或 /wiki/ 分享链接，自动解析 ID。不含 table= 时匹配同一多维表格中服务端配置的数据表。', googleLinkHint: '粘贴 Google 表格链接，自动解析文件和工作表 ID；不含 gid 时匹配服务端配置的工作表。', providerLinkMismatch: '链接与所选表格类型不一致。',
+    pairHint: '无需填写访问密钥。点击“配对并检查”，在服务端核对指纹并确认一次，再点击检查即可连接。', pairApproved: '已配对 · 使用请求签名认证', pairPending: '等待服务端确认 · 确认前请核对下方指纹', pairUnpaired: '尚未配对 · 可继续本地收藏', pairFingerprint: '配对指纹：{fingerprint}',
+    connectionUrl: '连接服务地址', endpointHint: '填写自己的 HTTPS 服务地址，可包含应用子目录。点击检查或保存时，Chrome 仅申请该主机的访问权限。更换已关联地址前请先取消关联。', permissionDenied: '未获得 Chrome 的主机访问授权，仍可在本机收藏。',
     feishuProvider: '飞书多维表格', googleProvider: 'Google 表格', provider: '表格类型', providerHint: '连接服务须先配置所选类型。切换已关联的收藏前，请先取消关联。', disconnect: '取消关联', disconnectHint: '保留本机归档和远端数据。服务端提醒会继续运行，如需停止请先保存关闭提醒。', reminderTime: '每日提醒时间', timeZone: '时区（IANA）',
     home: '首页', collection: '收藏', unreadCollection: '未读收藏',
     homeGuide: '打开文章或视频，点击 NewsBridge 图标并选择“收藏当前页”。收藏列表仅显示未读内容，处理后可标记已读或跳过。',
@@ -67,9 +73,9 @@ export const translations = {
 
     lede: '收藏值得深入阅读的文章和视频，在飞书多维表格或 Google 表格中整理与回顾。',
     readingList: '阅读列表', settings: '设置', interfaceLanguage: '界面语言',
-    interfaceHint: '保存在本机，仅影响插件界面。飞书提醒语言在下方单独设置。',
+    interfaceHint: '界面立即切换；保存设置后，提醒消息也使用此语言。',
     connection: '表格连接', connectionHint: '可先在本机收藏；连接已授权的表格后即可同步。',
-    accessKey: '连接访问密钥', keyHint: '向配置连接服务的人获取 NewsBridge 专用密钥，或从该服务现有的凭证存储中取得。',
+    accessKey: '连接访问密钥', keyHint: '本地收藏无需填写，连接服务同步时必填。向连接配置方获取 NewsBridge 专用密钥，或从该服务的凭证存储中取得。',
     keyHow: '自己运行仓库的参考连接？',
     keyInit: '先准备 private/host.json，再在运行连接服务的设备上，进入项目目录执行：',
     keyFile: '打开配置中 stateDir 目录里的 access.key，将文件内容粘贴到此处。示例配置的路径是 private/state/access.key。初始化不会替换已有密钥。',
@@ -80,8 +86,8 @@ export const translations = {
     baseToken: 'Base token / Spreadsheet ID', baseHint: '从 Google /d/ 或飞书 /base/ 链接解析；知识库链接由连接端解析。',
     tableId: '数据表 ID（Table ID）', tableIdHint: '优先取链接的 table= 或 Google gid 参数；未包含时匹配已验证连接的目标数据表。',
     idPlaceholder: '粘贴表格链接后自动填写',
-    idsParsed: '已从链接解析 ID，尚未验证访问权限。', idsVerified: '已从链接解析 ID，并与连接服务配置一致。',
-    idsServer: '当前显示连接服务授权的表格 ID，可粘贴其直接链接进行核对。', idsEmpty: '文件 ID 和工作表 ID 可从表格链接解析；会话 ID 无法从表格链接取得。',
+    idsParsed: '链接格式有效，尚未验证访问权限。', idsVerified: '表格链接与连接服务目标一致。',
+    idsServer: '当前使用连接服务授权的表格，可粘贴链接核对。', idsEmpty: '表格 ID 会自动解析，无需填写；会话 ID 由服务端单独配置。',
     tableEmpty: '粘贴飞书 / Google 表格链接，核对连接服务的目标表格。',
     basePending: '已解析多维表格 ID · 检查连接后匹配已配置的数据表 ID。',
     wikiPending: '知识库链接格式有效 · 请检查连接以解析实际多维表格，需要知识库读取权限。',
@@ -90,8 +96,8 @@ export const translations = {
     tableFormat: '格式有效 · 尚未核对连接配置与访问权限。',
     tableMismatch: '格式有效 · 与连接服务授权的表格不一致。',
     tableVerified: '格式有效 · 与连接配置一致 · 已验证读取权限与八个字段。写入权限仍需显式往返自检。',
-    check: '检查连接 / 重试', sync: '同步阅读列表', syncReady: '连接检查通过，同步会上传新收藏并更新表格阅读状态。',
-    syncUnavailable: '暂不可同步：请检查连接、核对表格，并保存连接密钥。',
+    check: '配对并检查 / 重试', sync: '同步阅读列表', syncReady: '连接检查通过，同步会上传新收藏并更新表格阅读状态。',
+    syncUnavailable: '暂不可同步：请检查连接、核对表格，并完成浏览器配对。',
     connected: '已连接 · 身份、读取权限与八个字段检查通过。',
     disconnected: '尚未连接。本机收藏仍可使用；表格同步需要已配置地址的连接版插件和连接端授权。',
     checking: '正在检查连接…', keyAccepted: '密钥有效 · 点击保存设置后才会存储。', savedKeyAccepted: '已存密钥验证通过。', keyNotChecked: '尚未验证 · 离开输入框时校验，不会自动保存。',
@@ -128,6 +134,7 @@ const tableErrors = new Map([
   [translations.en.tableWiki, 'tableWiki'], [translations.en.tableMissingId, 'tableMissingId'],
 ]);
 const diagnosticChinese = {
+  PAIR_REQUIRED: '浏览器尚未配对、已撤销或签名无效，请重新配对并由服务端核对指纹确认。',
   LINK_RESOLVER_UNAVAILABLE: '连接适配器尚未实现知识库解析，请添加只读解析能力或使用 /base/ 链接。',
   LINK_NOT_BITABLE: '此知识库节点不是多维表格，请使用多维表格节点的链接。',
   LINK_RESPONSE_INVALID: '表格链接解析返回了无效或不匹配的结果，请检查连接端实现。',
@@ -144,6 +151,16 @@ const diagnosticChinese = {
   OPERATION_FAILED: '连接操作失败，请根据步骤和参考编号排查。',
 };
 const commonChinese = new Map([
+  ['Pair this browser in Settings and confirm the request on the server before connecting.', '请在设置页发起配对，并由服务端核对指纹确认后再连接。'],
+  ['Pairing failed. Check the configured extension ID and pending requests on the server.', '配对失败，请检查服务端的扩展 ID 和待确认配对请求。'],
+
+  ['Enter a valid HTTPS connection service address.', '请填写有效的 HTTPS 连接服务地址。'],
+  ['Grant access to this connection host in Settings before connecting.', '请在设置页点击检查或保存，授权此连接主机后再连接。'],
+  ['Enter a connection service address before saving its key.', '保存密钥前请先填写连接服务地址。'],
+  ['Disconnect the current collection before changing the connection address.', '更换连接地址前，请先取消当前资料库的关联。'],
+  ['Enter a new connection access key when changing the address.', '更换地址时请填写新连接的访问密钥，旧密钥不会转发。'],
+  ['Connection settings changed during the request. Retry.', '请求期间连接设置已改变，请重试。'],
+
   ['Use a valid daily time (HH:mm) and IANA timezone.', '请填写有效的每日时间（HH:mm）和 IANA 时区，例如 Asia/Shanghai。'],
   ['Disconnect the current collection before switching providers.', '切换表格类型前，请先取消当前资料库的关联。'],
   ['The connection does not match the selected storage provider.', '连接服务与所选表格类型不一致，请核对服务端配置。'],

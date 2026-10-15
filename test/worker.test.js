@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { seedApprovedBrowser } from '../test-support/pairing.js';
 import { fixture } from '../test-support/connector-fixture.js';
 import { area, event } from '../test-support/chrome-mock.js';
 import { buildExtension } from '../scripts/build-extension.mjs';
@@ -16,9 +17,10 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
     static now() { return time; }
   };
   t.after(() => Object.assign(globalThis, original));
-  const local = { settings: { language: 'en' }, connectionAccessKey: 't'.repeat(43) }, session = {};
+  const local = { settings: { language: 'en' } }, session = {};
   const alarms = new Map(), badges = [], titles = [], opened = [];
   globalThis.chrome = {
+    permissions: { contains: async () => true, remove: async () => true },
     storage: { local: area(local), session: area(session) },
     runtime: { id: 'test', getURL: path => `chrome-extension://test/${path}`,
       onInstalled: event(), onStartup: event(), onMessage: event() },
@@ -29,6 +31,7 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
     contextMenus: { onClicked: event(), removeAll: callback => callback(), create: () => {} },
     tabs: { create: async value => opened.push(value.url) },
   };
+  await seedApprovedBrowser(chrome.storage.local, 'https://connection.example.com/');
   const f = fixture({ clock: () => time });
   const { records, sends, runtime } = f;
   let unavailable = false;
@@ -69,8 +72,7 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
     { id: 'test', frameId: 0, url: chrome.runtime.getURL('src/options.html') }, resolve));
   assert.equal(keyStatus.saved, true);
   assert.equal(Object.values(keyStatus).includes(local.connectionAccessKey), false);
-  await saveSettings({ language: 'en', tableUrl: previousSettings.tableUrl, connectionAccessKey: 't'.repeat(43) });
-  assert.ok(Number.isFinite(Date.parse(local.connectionKeySavedAt)));
+  assert.equal(local.connectionAccessKey, '');
   chrome.runtime.onStartup.emit(); await drain();
   assert.equal(sends.length, 0);
   assert.equal(alarms.has('daily-reading'), false);

@@ -4,6 +4,7 @@ import { resolve, dirname } from 'node:path';
 import { readFile, open } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { createGoogleAdapter } from './google-adapter.js';
+import { createPairing } from './pairing.js';
 import { createAdapter } from './adapter.js';
 import { createFileState } from './file-state.js';
 import { createConnector } from '../connector/runtime.js';
@@ -16,10 +17,8 @@ export async function loadHostConfig(file) {
 export async function createHost(config, { getCredentials = () => ({ appId: process.env.FEISHU_APP_ID, appSecret: process.env.FEISHU_APP_SECRET }), onDiagnostic = diagnostic => console.error(JSON.stringify(diagnostic)) } = {}) {
   let persistence;
   // Fail before mounting when the explicit initialization step was missed.
-  try { persistence = await createFileState(config); await persistence.store.load(); }
+  try { persistence = await createFileState({ ...config, authentication: 'paired' }); await persistence.store.load(); }
   catch { throw new DiagnosticError('STATE_LOAD', 'state.load'); }
-  try { await persistence.checkAccessKey(); }
-  catch { throw new DiagnosticError('ACCESS_KEY', 'identity'); }
   const profiles = config.connections || { [config.connector.storageProvider || 'feishu']: config.connector };
   const hosts = {};
   for (const [provider, input] of Object.entries(profiles)) {
@@ -50,7 +49,8 @@ export async function createHost(config, { getCredentials = () => ({ appId: proc
     const { provider: ignored, ...body } = payload;
     return hosts[provider].connector.dispatch(action, body);
   } };
+  const pairing = createPairing({ config, ...persistence });
   const handleRequest = createHttpHandler({ baseUrl: config.baseUrl, extensionId: config.extensionId,
-    authenticate: persistence.authenticate, connector: router });
-  return { connector, hosts, handleRequest, adapter, store: persistence.store, exclusive: persistence.exclusive };
+    authenticate: pairing.authenticate, pairing, connector: router });
+  return { connector, hosts, handleRequest, pairing, adapter, store: persistence.store, exclusive: persistence.exclusive };
 }

@@ -91,14 +91,14 @@ test('HTTP adapter bounds active operations and withholds unexpected errors', as
   for (const response of await Promise.all([first, second])) assert.equal((await response.text()).includes('private-token'), false);
 });
 test('offline browser performs no network calls; linked updates fail rather than pretend to sync', async () => {
-  const call = createConnectionClient({ baseUrl: '', fetchImpl: () => assert.fail('offline network') });
+  const call = createConnectionClient({ authentication: 'bearer', baseUrl: '', storage: area({}), fetchImpl: () => assert.fail('offline network') });
   assert.equal((await call('sync')).enabled, false);
   assert.equal((await call('health')).connected, false);
   await assert.rejects(call('read'), /Configure/);
 });
 test('browser-to-handler round trip verifies capabilities and pins identity before syncing', async () => {
   const f = fixture(), handle = handlerFor(f), local = { connectionAccessKey: key };
-  const call = createConnectionClient({ baseUrl: origin, storage: area(local), fetchImpl: async (url, options) => {
+  const call = createConnectionClient({ authentication: 'bearer', baseUrl: origin, storage: area(local), fetchImpl: async (url, options) => {
     assert.equal(options.credentials, 'omit'); assert.equal(options.redirect, 'error');
     return handle(new Request(url, options));
   } });
@@ -106,19 +106,19 @@ test('browser-to-handler round trip verifies capabilities and pins identity befo
   assert.equal((await call('sync')).articles.length, 1);
   await call('read', { base: 'baseTest/tblTest', recordId: 'recInitial', read: true });
   assert.equal(f.records[0].fields.阅读状态, '已读');
-  const corrupted = createConnectionClient({ baseUrl: origin, storage: area(local), fetchImpl: async () => Response.json({ ok: true, protocolVersion: 1, identity: { connectionId: 'other', base: 'baseTest/tblTest' } }) });
+  const corrupted = createConnectionClient({ authentication: 'bearer', baseUrl: origin, storage: area(local), fetchImpl: async () => Response.json({ ok: true, protocolVersion: 1, identity: { connectionId: 'other', base: 'baseTest/tblTest' } }) });
   await assert.rejects(corrupted('health'), /differs/);
-  const invalid = createConnectionClient({ baseUrl: origin, storage: area(local), fetchImpl: async () => Response.json({ ok: true, protocolVersion: 1, identity: local.collectionIdentity, enabled: true, base: 'baseTest/tblTest', articles: [null], bindings: [], topics: [] }) });
+  const invalid = createConnectionClient({ authentication: 'bearer', baseUrl: origin, storage: area(local), fetchImpl: async () => Response.json({ ok: true, protocolVersion: 1, identity: local.collectionIdentity, enabled: true, base: 'baseTest/tblTest', articles: [null], bindings: [], topics: [] }) });
   await assert.rejects(invalid('sync'), /snapshot/);
   local.connectionBaseUrl = 'https://previous.example.com';
-  await assert.rejects(call('health'), /address changed/);
+  await assert.rejects(call('health'), /Disconnect.*connection address/);
 });
 
 test('base-path connection reaches only its mounted routes and refuses key reuse on another path', async () => {
   const f = fixture(), local = { connectionAccessKey: key, connectionBaseUrl: origin + '/newsbridge/' };
   const handle = handlerFor(f, { baseUrl: origin + '/newsbridge/' });
   const urls = [];
-  const call = createConnectionClient({ baseUrl: origin + '/newsbridge', storage: area(local), fetchImpl: async (url, options) => {
+  const call = createConnectionClient({ authentication: 'bearer', baseUrl: origin + '/newsbridge', storage: area(local), fetchImpl: async (url, options) => {
     urls.push(url); return handle(new Request(url, options));
   } });
   await call('health'); await call('sync');
@@ -127,8 +127,8 @@ test('base-path connection reaches only its mounted routes and refuses key reuse
     assert.equal((await handle(request({ path }))).status, 404);
   }
   assert.equal((await handle(request({ path: '/newsbridge/v1/health', headers: { Authorization: '' } }))).status, 401);
-  const changedPath = createConnectionClient({ baseUrl: origin + '/another/', storage: area(local), fetchImpl: () => assert.fail('key must not cross base paths') });
-  await assert.rejects(changedPath('health'), /address changed/);
+  const changedPath = createConnectionClient({ authentication: 'bearer', baseUrl: origin + '/another/', storage: area(local), fetchImpl: () => assert.fail('key must not cross base paths') });
+  await assert.rejects(changedPath('health'), /Disconnect.*connection address/);
 });
 
 test('saved custom reminder time governs sends and survives connector restart', async () => {

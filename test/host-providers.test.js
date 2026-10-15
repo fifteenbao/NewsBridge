@@ -7,6 +7,8 @@ import { generateKeyPairSync } from 'node:crypto';
 import { createHost } from '../examples/host.js';
 import { createFileState } from '../examples/file-state.js';
 import { createNodeServer } from '../examples/serve.mjs';
+import { area } from '../test-support/chrome-mock.js';
+import { seedApprovedBrowser, signConnectionRequest } from '../test-support/pairing.js';
 import { ARTICLE_FIELDS } from '../src/lib/bitable.js';
 
 test('dual-profile reference host routes only configured providers, verifies credentials and separates preferences', async t => {
@@ -32,8 +34,14 @@ test('dual-profile reference host routes only configured providers, verifies cre
     assert.equal(options.redirect, 'error'); return new Response(JSON.stringify(body));
   };
   const host = await createHost(config, { getCredentials: () => ({ appId: 'cli_Test', appSecret: 'test_secret' }), onDiagnostic: () => {} });
-  const key = (await readFile(join(config.stateDir, 'access.key'), 'utf8')).trim();
-  const call = (action, data) => host.handleRequest(new Request(config.baseUrl + 'v1/' + action, { method: 'POST', headers: { Origin: 'chrome-extension://' + config.extensionId, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify(data) }));
+  const browserState = {}, browserStorage = area(browserState);
+  await seedApprovedBrowser(browserStorage, config.baseUrl);
+  const pending = await host.pairing.request({ publicKey: browserState.pairingDevices[config.baseUrl].publicKey });
+  await host.pairing.manage('approve', pending.pairId, pending.fingerprint);
+  await browserStorage.set({ connectionPairings: { [config.baseUrl]: { pairId: pending.pairId, status: 'approved' } } });
+  const call = async (action, data) => { const body = JSON.stringify(data), url = config.baseUrl + 'v1/' + action;
+    const signed = await signConnectionRequest(config.baseUrl, url, body, browserStorage);
+    return host.handleRequest(new Request(url, { method: 'POST', headers: { ...signed, Origin: 'chrome-extension://' + config.extensionId, 'Content-Type': 'application/json' }, body })); };
   for (const provider of ['feishu', 'google']) {
     const response = await call('health', { provider }); assert.equal(response.status, 200); assert.equal((await response.json()).configuration.storageProvider, provider);
   }

@@ -20,8 +20,8 @@ export async function buildExtension({ baseUrl = '', outputRoot = new URL('../di
   }
   for (const name of ['manifest.json', 'src', 'icons', 'LICENSE']) await add(name);
   const manifest = JSON.parse(entries.find(e => e.name === 'manifest.json').data);
-  if (origin) manifest.host_permissions = [origin + '/*']; else delete manifest.host_permissions;
-  manifest.content_security_policy.extension_pages = manifest.content_security_policy.extension_pages.replace(/connect-src [^;]+;/, `connect-src ${origin || "'none'"};`);
+  if (origin) { manifest.host_permissions = [origin + '/*']; delete manifest.optional_host_permissions; } else delete manifest.host_permissions;
+  manifest.content_security_policy.extension_pages = manifest.content_security_policy.extension_pages.replace(/connect-src [^;]+;/, `connect-src ${origin || 'https:'};`);
   entries.find(e => e.name === 'manifest.json').data = Buffer.from(JSON.stringify(manifest, null, 2) + '\n');
   entries.find(e => e.name === 'src/lib/connection-config.js').data = Buffer.from(`export const CONNECTION_BASE_URL = ${JSON.stringify(baseUrl)};\n`);
   if (!/^\d+(?:\.\d+){0,3}$/.test(manifest.version)) throw new Error('Invalid extension version.');
@@ -80,5 +80,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     } catch { throw new Error('Private build config must contain a nonempty baseUrl.'); }
   }
   const result = await buildExtension({ baseUrl });
-  process.stdout.write(`Extension folder: ${result.directory}\nZIP archive: ${result.archive}\nVersioned ZIP: ${result.versionArchive}\n${result.connected ? 'Private connection build; do not publish.' : 'Offline build; no host permissions.'}\n`);
+  process.stdout.write(`Extension folder: ${result.directory}\nZIP archive: ${result.archive}\nVersioned ZIP: ${result.versionArchive}\n${result.connected ? 'Private connection build; do not publish.' : 'No endpoint configured; grant one connection host from Settings when needed.'}\n`);
 }

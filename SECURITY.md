@@ -1,8 +1,8 @@
 # Security / 安全边界
 
-NewsBridge's public extension works offline and requests no host permission. A private connected build grants host access only to its operator-selected HTTPS origin. Requests and handler routes use the configured application path, but Chrome host permissions do not isolate subdirectories. Packaging includes only the manifest, browser source, icons and license; configuration, credentials, connector code and tests are excluded.
+The public extension has no preconfigured endpoint and no required host permissions. It declares optional HTTPS hosts so Settings can request only the user-selected host from a click. CSP permits HTTPS connections; client validation and granted host permissions restrict normal service requests to the saved, normalized endpoint. Until the user configures and grants a host, captures stay local. Chrome host permissions do not isolate subdirectories; requests and server handlers enforce the full application base path.
 
-公开扩展默认离线，无域名访问权限。私人连接包仅授权用户选择的 HTTPS 主机；请求和处理器使用配置的目录前缀，但 Chrome 域名权限不隔离子目录；安装包不包含私人配置、凭证、连接端代码或测试。
+公开扩展不预置连接地址、不要求安装时授予域名权限。HTTPS 主机声明为可选，由用户在设置页点击检查／保存，按具体主机授权。CSP 允许 HTTPS 连接，客户端校验与已授予主机权限限制服务请求到本机保存的完整地址；未配置和授权时仅本机收藏。Chrome 权限不隔离子目录，客户端及服务端仍校验完整路径。安装包不包含私人配置、凭证、连接端代码或测试。
 
 ## Extension / 扩展
 
@@ -48,3 +48,10 @@ Google 私钥只保存在服务端，按调用读取私人文件，校验 OAuth 
 One reference host access key can authorize both preconfigured profiles for a trusted user. It is not multi-tenant isolation. Browser identity pinning prevents switching with an old cache; disconnect archives locally, clears local key/identity and does not revoke the host key, remove remote content or pause server reminders. Chrome archives retain the same privacy boundary and quota limits as other extension storage. The optional listener is manually started on loopback and must stay behind a TLS proxy; do not expose its internal port.
 
 一个参考服务密钥可访问该用户预先配置的两种表格，不是多租户隔离。取消关联归档本机资料并清除本机密钥和身份，不撤销服务端密钥、不删除远端内容、不暂停服务端提醒。归档仍受 Chrome 本地存储隐私边界与配额限制。可选服务入口手动启动并只监听回环，须置于 TLS 代理后，不公开内部端口。
+
+
+## Editable connection address / 可编辑连接地址
+
+Check/Save requests the exact selected HTTPS origin from a user gesture; the optional https://*/* declaration does not grant all-sites access. Credentials and captures are sent only after the client checks permission. HTTP, private/local literal hosts, wildcard input, credentials in URLs and ambiguous paths remain rejected. Change an associated endpoint only after disconnecting: local key/identity reset and archive update happen together, and the old optional host grant is removed where possible. Keys remain bound to the full endpoint, including path; old keys are not forwarded to new addresses. Archives include endpoint plus verified account/table identity, preventing a new server claiming the same identity from receiving an old archive automatically.
+
+检查／保存从用户点击中申请具体 HTTPS 主机权限；可选声明不是全站授权。发送密钥与收藏前校验主机授权，仍拒绝 HTTP、本机／私有地址字面量、通配符、带凭证或路径歧义的地址。换关联地址前先取消关联，原子清除本机密钥／身份并归档，尽可能撤销旧可选域名授权。密钥绑定完整地址及子路径，不转发到新地址；归档同时绑定地址和账号／表格身份，避免新服务器仅凭声称相同身份获得旧资料库。

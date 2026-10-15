@@ -17,8 +17,9 @@ test('both interface languages cover the real page and preserve interpolation va
   assert.equal(html.includes('Feishu Bitable link / 多维表格链接'), false);
   assert.ok(html.indexOf('id="chatId"') > html.indexOf('id="remindersEnabled"'));
   assert.ok(html.indexOf('id="chatId"') > html.indexOf('id="sync"'));
-  assert.match(html, /node examples\/run\.mjs init private\/host\.json/);
-  assert.match(html, /private\/state\/access\.key/);
+  assert.match(html, /id="pair-status"/);
+  assert.doesNotMatch(html, /id="(?:connectionAccessKey|baseToken|articleTableId|language)"/);
+
 });
 test('interface choice respects a saved preference and supports Chinese browser locales', () => {
   assert.equal(chooseLanguage(undefined, 'zh-CN'), 'zh');

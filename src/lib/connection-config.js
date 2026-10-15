@@ -1,2 +1,2 @@
-// Public source is offline. The packaging script configures private builds.
+// Optional prefilled default. Users configure their endpoint in Settings.
 export const CONNECTION_BASE_URL = '';
