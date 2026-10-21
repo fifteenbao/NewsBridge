@@ -71,9 +71,9 @@ Config keys are storageProvider (feishu default, or google), connectionId, baseT
 
 ## Browser protocol / 浏览器协议
 
-Expose the following authenticated POST endpoints (relative to `baseUrl`) in your existing HTTPS environment. Configure a `baseUrl`: an HTTPS address with an optional application path, for example `https://connection.example.com/newsbridge/`. It must not contain credentials, a query or a fragment. Both root and nested paths are supported; a missing trailing slash is normalized. Requests and responses use JSON with a 20 MiB limit. Authenticate with a dedicated opaque base64url Bearer key (32–512 characters), never a Feishu token. Authenticate even when the Origin header is absent; CORS is not authentication.
+Expose the following authenticated POST endpoints (relative to `baseUrl`) in your existing HTTPS environment. Configure a `baseUrl`: an HTTPS address with an optional application path, for example `https://connection.example.com/newsbridge/`. It must not contain credentials, a query or a fragment. Both root and nested paths are supported; a missing trailing slash is normalized. Requests and responses use JSON with a 20 MiB limit. The reference host authenticates approved browser signatures; see [pairing](PAIRING.md). POST v1/pair accepts only a public key, requires the configured extension origin, and grants no table access until operator approval. Existing data operations use X-NewsBridge-Pair, Time, Nonce and Signature headers. CORS alone is not authentication; Bearer is only a lower-level injectable compatibility mode, not the reference-host default.
 
-在现有 HTTPS 环境提供以下相对于 baseUrl 的接口，使用 `baseUrl` 配置 HTTPS 地址，可带应用子路径，例如 `https://connection.example.com/newsbridge/`。支持根目录或多级目录，末尾斜杠会自动补齐；不得携带凭证、查询参数或片段。JSON 大小上限 20 MiB。使用连接专用 Bearer 密钥，不使用飞书令牌；没有 Origin 头也必须鉴权，CORS 不能代替鉴权。
+在现有 HTTPS 环境提供以下相对于 baseUrl 的接口，使用 `baseUrl` 配置 HTTPS 地址，可带应用子路径，例如 `https://connection.example.com/newsbridge/`。支持根目录或多级目录，末尾斜杠会自动补齐；不得携带凭证、查询参数或片段。JSON 大小上限 20 MiB。参考服务使用已确认的浏览器签名，详见配对指南。v1/pair 只提交公钥，管理员核对指纹确认前不能访问表格；其他操作须带四个 X-NewsBridge-* 签名头。CORS 不能代替认证；Bearer 仅为底层可注入的兼容模式，不是参考服务默认方式。
 
 | Path / 路径 | Request / 请求字段 | Result / 结果 |
 | --- | --- | --- |
@@ -98,7 +98,7 @@ A capture contains `id, title, url, savedAt` (ISO date), and `read` (boolean). P
 
 ### Base URL and origin / 连接地址与 origin
 
-With `baseUrl: "https://connection.example.com/newsbridge/"`, health is `https://connection.example.com/newsbridge/v1/health`, not `/v1/health` at the domain root. Client requests append `v1/<action>` relative to the normalized base URL. Changing the base path requires re-entering the access key, even on the same host, so an existing key is not silently forwarded to another application.
+With `baseUrl: "https://connection.example.com/newsbridge/"`, health is `https://connection.example.com/newsbridge/v1/health`, not `/v1/health` at the domain root. Client requests append `v1/<action>` relative to the normalized base URL. Changing the base path requires separate browser pairing, even on the same host.
 
 示例配置的健康检查路径为 `/newsbridge/v1/health`，浏览器按目录追加 `v1/<action>`，不会跳到域名根目录。同域名下更换路径也需要重新输入密钥，避免旧密钥被静默转发给其他应用。
 
@@ -108,7 +108,7 @@ Use the same external `baseUrl` on the handler and extension. Mount this subtree
 
 `origin` means scheme, host and port only. The build derives Chrome host permissions and CSP from it. [Chrome ignores the path in host permissions](https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns), so permissions use `https://connection.example.com/*`. A subdirectory is a routing boundary, not an independent browser security origin. Fixed client routes, exact handler paths and dedicated authentication constrain this integration; do not claim path-only Chrome access.
 
-origin 只包含协议、主机与端口，打包程序据此生成 Chrome 域名权限与 CSP。Chrome 的 host_permissions 会忽略路径，所以权限仍是该主机下的 `/*`。子目录解决路由共存，不形成独立浏览器安全来源；实际操作由固定请求路径、路由校验和专用密钥约束，不能宣称 Chrome 权限只覆盖该目录。
+origin 只包含协议、主机与端口，打包程序据此生成 Chrome 域名权限与 CSP。Chrome 的 host_permissions 会忽略路径，所以权限仍是该主机下的 `/*`。子目录解决路由共存，不形成独立浏览器安全来源；实际操作由固定请求路径、路由校验和已确认的签名认证约束，不能宣称 Chrome 权限只覆盖该目录。
 
 For unambiguous routing, paths accept slash-separated ASCII letters, digits, underscores, hyphens and dots within a segment. Empty interior segments, dot traversal, percent-encoded segments and backslashes are rejected.
 
@@ -121,15 +121,16 @@ import { createHttpHandler } from '../connector/http.js';
 const handleRequest = createHttpHandler({
   baseUrl: privateConfig.baseUrl,
   extensionId: privateConfig.extensionId,
-  authenticate: verifyDedicatedAccessKey,
+  pairing, // createPairing({config, store, exclusive}); see examples/host.js
+  authenticate: pairing.authenticate,
   connector,
 });
 // Mount handleRequest(Request) -> Promise<Response> in your existing router.
 ```
 
-The supplied handler uses standard Request/Response objects, exact extension-origin checks, input bounds and a per-instance concurrency limit. `authenticate(request)` must verify/revoke the dedicated key through your existing secret store and return a boolean; use a timing-safe verifier. The host remains responsible for TLS, timeouts, admission/rate limits and cross-instance locking. If using a proxy, construct the external request URL only from trusted routing data. Do not trust arbitrary forwarded headers.
+The supplied handler uses standard Request/Response objects, exact extension-origin checks, input bounds and a per-instance concurrency limit. `authenticate(request)` verifies approved signatures and persists nonce replay protection before dispatch. The reference pairing implementation shares the same store and exclusive lock as the connector. The host remains responsible for TLS, timeouts, admission/rate limits and cross-instance locking. If using a proxy, construct the external request URL only from trusted routing data. Do not trust arbitrary forwarded headers.
 
-此处理器不启动监听端口，直接挂载到已有路由。宿主负责真实鉴权、撤销密钥、TLS、超时、限流与跨实例锁。代理环境只能从可信路由配置恢复外部 URL，不信任任意转发头。
+此处理器不启动监听端口，直接挂载到已有路由。宿主负责签名认证、撤销配对、TLS、超时、限流与跨实例锁。代理环境只能从可信路由配置恢复外部 URL，不信任任意转发头。
 
 Only `/v1/*` actions above are exposed. There is no HTTP daily-send endpoint, arbitrary API relay or shell-command endpoint. Error responses include `{ok: false, error, diagnostic}`. The browser renders only allowlisted diagnostic codes and metadata, never arbitrary provider messages. Use the reference to correlate the browser error with `onDiagnostic` output.
 
@@ -155,9 +156,9 @@ Supply `onDiagnostic(diagnostic)` to createConnector. It receives only code, sta
 
 通过 onDiagnostic 接入现有日志。核心默认不写日志，参考宿主输出已脱敏 JSON。适配器可抛 DiagnosticError；普通异常隐藏原始内容。STATE_LOAD/STATE_SAVE 分别检查状态文件格式、权限或磁盘；LOCK_BUSY 检查持锁进程。不得通过清空状态解决 pending 失败，否则会丢失发送去重记录。
 
-`extensionId` can be empty during setup. The handler then rejects every request with an Origin and every CORS preflight, but still permits authenticated non-browser requests without Origin. This is setup behavior, not authentication bypass: every operation requires its Bearer key. Register the actual 32-character Chrome ID and recreate the handler before connecting Chrome. A supplied malformed ID is still an error. Origin is browser isolation, not a secret; non-browser callers can omit/spoof it and must be authenticated.
+The reference host can start with an empty extensionId for local CLI setup/checks, but browser pairing and signed HTTP access require the actual registered extension ID. Fill it and recreate/restart the handler before pairing. Origin is browser isolation, not a secret: signatures and operator-approved public keys provide authentication. The separate lower-level Bearer compatibility handler can permit authenticated no-Origin diagnostics; that behavior is not the paired reference host.
 
-安装前 extensionId 可以留空，此时拒绝浏览器 Origin 与预检，保留必须鉴权的无 Origin 诊断。安装后填写真实扩展 ID 并重建处理器。Origin 不能替代专用密钥。
+参考服务允许 extensionId 暂留空以便本机 CLI 初始化／检查，但浏览器配对及签名 HTTP 请求必须配置真实扩展 ID 并重建处理器。Origin 只是来源隔离，真正认证来自管理员确认过的公钥及请求签名。底层独立 Bearer 兼容处理器可允许已鉴权的无 Origin 诊断，不等于配对参考服务。
 
 ## Eight-field codec / 八字段编解码
 
@@ -239,9 +240,9 @@ Disconnect is a Chrome-local atomic archive/reset. It does not clear server stat
 
 ## Settings endpoint / 设置页连接地址
 
-CONNECTION_BASE_URL is an optional prefilled fallback, empty in public source. Settings persists connectionEndpoint in Chrome-local storage. The public package declares optional HTTPS hosts and asks for only the selected host on Check/Save; the client verifies permission before sending. CSP permits HTTPS transport, while URL validation, granted host permission and the saved endpoint constrain the service route. Changing the endpoint requires disconnect/reassociation and a new key. This does not remove service-side extensionId or credential verification. HTTP localhost is not supported by this transport. A private build can still prefill an endpoint and keep its required fixed-origin permission, which cannot be revoked at runtime.
+CONNECTION_BASE_URL is an optional prefilled fallback, empty in public source. Settings persists connectionEndpoint in Chrome-local storage. The public package declares optional HTTPS hosts and asks for only the selected host on Check/Save; the client verifies permission before sending. CSP permits HTTPS transport, while URL validation, granted host permission and the saved endpoint constrain the service route. Changing the endpoint requires disconnect/reassociation and separate pairing. This does not remove service-side extensionId or credential verification. HTTP localhost is not supported by this transport. A private build can still prefill an endpoint and keep its required fixed-origin permission, which cannot be revoked at runtime.
 
-CONNECTION_BASE_URL 仅为可选预填默认值，公开源码留空。设置页将地址保存为 Chrome 本机 connectionEndpoint，检查／保存时按具体 HTTPS 主机申请可选权限，发送前再校验授权。CSP 允许 HTTPS，地址校验、实际主机授权与已保存地址限定服务路由。换地址需取消关联并使用新密钥，不取消服务端 extensionId 校验或认证；仍不支持 HTTP localhost。私人固定地址包的必需域名权限无法运行时撤销。
+CONNECTION_BASE_URL 仅为可选预填默认值，公开源码留空。设置页将地址保存为 Chrome 本机 connectionEndpoint，检查／保存时按具体 HTTPS 主机申请可选权限，发送前再校验授权。CSP 允许 HTTPS，地址校验、实际主机授权与已保存地址限定服务路由。换地址需取消关联并独立配对，不取消服务端 extensionId 校验或认证；仍不支持 HTTP localhost。私人固定地址包的必需域名权限无法运行时撤销。
 
 The only language selector is in the header. It updates UI immediately; Save settings sends that same language through the existing preferences operation for reminders. Parsed table IDs remain internal: provider and its adjacent link input determine the match, then host identity/schema validation confirms authorization.
 

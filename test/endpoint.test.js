@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { getPairingStatus } from '../src/lib/pairing-client.js';
 import { seedApprovedBrowser } from '../test-support/pairing.js';
 import { area } from '../test-support/chrome-mock.js';
 import { createConnectionClient } from '../src/lib/connection.js';
 import { endpointValue, endpointPermission, requestEndpointPermission, collectionArchiveKey } from '../src/lib/endpoint.js';
-import { setSettings, getSettings, getConnectionKeyStatus, disconnectCollection } from '../src/lib/storage.js';
+import { setSettings, getSettings, disconnectCollection } from '../src/lib/storage.js';
 const address = 'https://connection.example.com/newsbridge/', other = 'https://other.example.com/library/';
 const key = 't'.repeat(43), identity = { connectionId: 'app:cli_Test', base: 'baseTest/tblTest' };
 const healthy = () => new Response(JSON.stringify({ ok: true, connected: true, identity, protocolVersion: 1, capabilities: { tableRead: true, tableWrite: true }, configuration: { storageProvider: 'feishu' } }));
@@ -35,7 +36,7 @@ test('settings atomically persist address/key/identity, isolate archives by endp
   await seedApprovedBrowser(storage, address);
   await setSettings({ language: 'en', connectionUrl: address });
   assert.equal(values.connectionEndpoint, address); assert.equal(values.connectionBaseUrl, address); assert.equal(values.connectionAccessKey, '');
-  assert.equal((await getSettings()).connectionUrl, address); assert.equal((await getConnectionKeyStatus()).matchesEndpoint, true);
+  assert.equal((await getSettings()).connectionUrl, address); assert.equal((await getPairingStatus()).approved, true);
   assert.equal(requests[0].url, address + 'v1/preferences');
   await requestEndpointPermission(other);
   await assert.rejects(setSettings({ language: 'en', connectionUrl: other, connectionAccessKey: 'u'.repeat(43) }), /Disconnect/);

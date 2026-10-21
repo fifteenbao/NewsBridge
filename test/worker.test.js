@@ -68,10 +68,11 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
   const previousSettings = structuredClone(local.settings);
   assert.equal((await saveSettings({ language: 'zh', tableUrl: 'https://workspace.feishu.cn/base/baseOther?table=tblOther' })).ok, false);
   assert.deepEqual(local.settings, previousSettings);
-  const keyStatus = await new Promise(resolve => chrome.runtime.onMessage.emit({ type: 'KEY_STATUS' },
+  const keyStatus = await new Promise(resolve => chrome.runtime.onMessage.emit({ type: 'PAIR_STATUS' },
     { id: 'test', frameId: 0, url: chrome.runtime.getURL('src/options.html') }, resolve));
-  assert.equal(keyStatus.saved, true);
-  assert.equal(Object.values(keyStatus).includes(local.connectionAccessKey), false);
+  assert.equal(keyStatus.approved, true);
+  assert.equal(Object.hasOwn(keyStatus, 'privateKey'), false);
+  assert.equal(JSON.stringify(keyStatus).includes(local.pairingDevices['https://connection.example.com/'].privateKey.d), false);
   assert.equal(local.connectionAccessKey, '');
   chrome.runtime.onStartup.emit(); await drain();
   assert.equal(sends.length, 0);

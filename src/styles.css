@@ -593,9 +593,9 @@ button:disabled { cursor: default; opacity: .55; }
 .field-control p, .card-note { overflow-wrap: anywhere; }
 .field-control p { max-width: 230px; font-size: 12px; line-height: 1.5; margin-top: 8px; }
 .options-foot { flex-wrap: wrap; }
-.key-guide { font-size: 13px; line-height: 1.6; margin: 0 0 16px; }
-.key-guide summary { cursor: pointer; color: var(--ink); }
-.key-guide pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0; }
+.pairing-guide { margin: 0 0 20px; }
+.pairing-guide code, .pairing-guide pre { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 10px 0; }
+#pair-command:empty, #pair-fingerprint:empty { display: none; }
 @media (max-width: 540px) {
   .field { align-items: stretch; flex-direction: column; gap: 10px; }
   .field-control { flex-basis: auto; width: 100%; }

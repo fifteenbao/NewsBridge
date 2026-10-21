@@ -113,7 +113,7 @@ location /newsbridge/ {
 }
 ```
 
-Preserve the path: no trailing slash after the upstream port. Pass Origin and Authorization unchanged. Apply your existing proxy's rate limits and exclude authorization headers, request bodies and credential URLs from logs. The handler enforces a fixed HTTPS URL, exact extension origin, dedicated key, bounded JSON and two active operations; CORS is not a substitute for authentication. Access without Origin is permitted only with a valid key for operator checks. Public requests must pass through TLS. A proxy on a different machine cannot use this loopback endpoint; wire the handler into that environment with equivalent controls instead.
+Preserve the path: no trailing slash after the upstream port. Pass Origin and all X-NewsBridge-* signing headers unchanged. Apply your existing proxy's rate limits and exclude authorization headers, request bodies and credential URLs from logs. The handler enforces a fixed HTTPS URL, exact extension origin, approved request signatures, bounded JSON and two active operations; CORS is not a substitute for authentication. Use the local CLI for operator checks; reference HTTP requests require approved browser signatures. Public requests must pass through TLS. A proxy on a different machine cannot use this loopback endpoint; wire the handler into that environment with equivalent controls instead.
 
 ## 5. Build, associate, disconnect and switch
 
@@ -140,7 +140,7 @@ Configuration location (structure only; retain the rest of your file):
 }
 ```
 
-Use the actual ID without a chrome-extension:// prefix. An empty ID permits startup and authenticated operator checks but denies browser requests. A wrong ID, a handler that has not reloaded, or a moved unpacked folder with an outdated ID causes 403 ORIGIN_DENIED. Re-entering the access key does not fix it.
+Use the actual ID without a chrome-extension:// prefix. An empty ID permits startup and authenticated operator checks but denies browser requests. A wrong ID, a handler that has not reloaded, or a moved unpacked folder with an outdated ID causes 403 ORIGIN_DENIED. Pairing again does not fix an incorrect origin whitelist.
 
 
 ```sh

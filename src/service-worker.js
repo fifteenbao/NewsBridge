@@ -1,6 +1,6 @@
 import { requestPairing, getPairingStatus } from './lib/pairing-client.js';
 import { SafeError, safeErrorMessage } from './lib/security.js';
-import { getItems, setItems, setSettings, setRead, setReadingStatus, addItem, deleteItem, getConnectionKeyStatus, disconnectCollection } from './lib/storage.js';
+import { getItems, setItems, setSettings, setRead, setReadingStatus, addItem, deleteItem, disconnectCollection } from './lib/storage.js';
 import { callKnowledge, mergeKnowledge } from './lib/knowledge.js';
 import { callConnection, connectionStatus, pendingDelivery, resolveDelivery } from './lib/connection.js';
 
@@ -98,7 +98,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (sender.id !== chrome.runtime.id || sender.frameId !== undefined && sender.frameId !== 0 || !fromOptions && !fromPopup) return;
   if (fromPopup && message?.type !== 'CAPTURE_PAGE') return;
   if (fromOptions && message?.type === 'CAPTURE_PAGE') return;
-  if (!['CAPTURE_PAGE', 'SET_STATUS', 'SET_READ', 'DELETE_ITEM', 'SAVE_SETTINGS', 'CONNECTION_STATUS', 'SYNC', 'PENDING', 'RESOLVE_PENDING', 'VALIDATE_CONNECTION', 'KEY_STATUS', 'DISCONNECT', 'PAIR_REQUEST', 'PAIR_STATUS'].includes(message?.type)) return;
+  if (!['CAPTURE_PAGE', 'SET_STATUS', 'SET_READ', 'DELETE_ITEM', 'SAVE_SETTINGS', 'CONNECTION_STATUS', 'SYNC', 'PENDING', 'RESOLVE_PENDING', 'VALIDATE_CONNECTION', 'DISCONNECT', 'PAIR_REQUEST', 'PAIR_STATUS'].includes(message?.type)) return;
   if (!message || typeof message !== 'object' || JSON.stringify(message).length > 8192) { reply({ ok: false, error: 'Invalid request.' }); return; }
   enqueue(async () => {
     if (message.type === 'CAPTURE_PAGE') {
@@ -110,9 +110,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (message.type === 'DISCONNECT') return disconnectCollection();
     if (message.type === 'PAIR_REQUEST') return { ok: true, ...await requestPairing(message.connectionUrl) };
     if (message.type === 'PAIR_STATUS') return { ok: true, ...await getPairingStatus() };
-    if (message.type === 'KEY_STATUS') return { ok: true, ...await getConnectionKeyStatus() };
     if (message.type === 'VALIDATE_CONNECTION') {
-      if (message.accessKey !== undefined && (typeof message.accessKey !== 'string' || message.accessKey.length > 512)) throw new SafeError('Invalid access key.');
       return { ok: true, ...await callConnection('health', message.tableUrl !== undefined ? { tableUrl: message.tableUrl } : {}, { pinIdentity: false, provider: message.provider, endpoint: message.connectionUrl }) };
     }
     if (message.type === 'SAVE_SETTINGS') return { ok: true, settings: await setSettings(message.settings) };
