@@ -4,7 +4,6 @@ import { parseTableUrl } from './table-url.js';
 import { SafeError, isSafeArticleUrl } from './security.js';
 import { callKnowledge } from './knowledge.js';
 import { callConnection } from './connection.js';
-import { getPairingStatus } from './pairing-client.js';
 import { normalizeCaptureMetadata } from './capture-metadata.js';
 import { storedEndpoint, endpointValue, releaseEndpointPermission, endpointPermission, collectionArchiveKey } from './endpoint.js';
 
@@ -87,11 +86,6 @@ export async function setSettings(settings) {
     connectionAccessKey: '', connectionBaseUrl: endpoint, connectionKeySavedAt: null });
   if (endpoint !== previous) await releaseEndpointPermission(previous, endpoint);
   return next;
-}
-
-export async function getConnectionKeyStatus() {
-  const pair = await getPairingStatus();
-  return { saved: pair.approved, savedAt: null, baseUrl: pair.baseUrl, matchesEndpoint: pair.approved };
 }
 
 // Preserve separate collections; no remote deletion or credential revocation.

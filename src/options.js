@@ -158,8 +158,8 @@ async function mutate(message) {
   if (!result?.ok) throw new Error(result?.error || t('genericFailure'));
   return result;
 }
-let connection = null, keyStatus = { saved: false }, validationSequence = 0, preferencesDirty = false, checkingConnection = false;
-let pending = null, authError = null, keyValidation = null, pendingError = null, tableLinkError = null;
+let connection = null, pairingState = { approved: false }, validationSequence = 0, preferencesDirty = false, checkingConnection = false;
+let pending = null, authError = null, pendingError = null, tableLinkError = null;
 const element = id => document.getElementById(id);
 let currentRoute = 'settings';
 function applyRoute(route) {
@@ -173,7 +173,7 @@ function applyRoute(route) {
 async function renderHome() {
   const items = (await getItems()).filter(item => !item.feishuDeleted);
   element('home-counts').textContent = t('homeCounts', { unread: items.filter(isUnread).length, skipped: items.filter(item => item.status === '跳过').length, read: items.filter(item => item.read && item.status !== '跳过').length });
-  element('home-status').textContent = t(connection?.connected && keyStatus.saved && keyStatus.matchesEndpoint ? 'homeReady' : 'homeNeedsSetup');
+  element('home-status').textContent = t(connection?.connected && pairingState.approved ? 'homeReady' : 'homeNeedsSetup');
 }
 function fillSettings(settings) {
   element('connectionUrl').value = settings.connectionUrl ?? '';
@@ -183,23 +183,23 @@ function fillSettings(settings) {
 }
 function updateSyncButton() {
   const endpoint = addressFeedback();
-  const ready = !!endpoint && endpoint === keyStatus.baseUrl && !checkingConnection && connection?.connected && keyStatus.saved && keyStatus.matchesEndpoint;
+  const ready = !!endpoint && endpoint === pairingState.baseUrl && !checkingConnection && connection?.connected && pairingState.approved;
   element('sync').disabled = !ready;
   element('export-csv').disabled = !ready;
   element('export-table').disabled = !ready || !connection?.configuration?.exportAvailable;
   element('sync-help').textContent = t(ready ? 'syncReady' : 'syncUnavailable');
 }
-function renderKeyStatus() {
+function renderPairingStatus() {
   let visibleEndpoint = '';
   try { visibleEndpoint = endpointValue(element('connectionUrl').value); } catch {}
-  const pair = pairingView || (visibleEndpoint === keyStatus.baseUrl ? keyStatus : { status: 'unpaired' });
+  const pair = pairingView || (visibleEndpoint === pairingState.baseUrl ? pairingState : { status: 'unpaired' });
   element('pair-status').textContent = t(pair.approved || pair.status === 'approved' ? 'pairApproved' : pair.status === 'pending' ? 'pairPending' : 'pairUnpaired');
   element('pair-fingerprint').textContent = pair.fingerprint ? t('pairFingerprint', { fingerprint: pair.fingerprint }) : '';
   element('pair-command').textContent = pair.status === 'pending' ? `node examples/run.mjs pair-approve private/host.json --pair-id ${pair.pairId} --fingerprint ${pair.fingerprint}` : '';
 }
-async function refreshKeyStatus() {
+async function refreshPairingStatus() {
   const pair = await mutate({ type: 'PAIR_STATUS' });
-  keyStatus = { ...pair, saved: pair.approved, matchesEndpoint: pair.approved }; pairingView = null; renderKeyStatus();
+  pairingState = pair; pairingView = null; renderPairingStatus();
 }
 function addressFeedback() {
   element('connectionUrl').removeAttribute('aria-invalid');
@@ -240,7 +240,7 @@ function renderConnection(status) {
     if (config?.timeZone) element('timeZone').value = config.timeZone;
     element('remindersEnabled').checked = config?.remindersEnabled === true;
   }
-  element('disconnect').disabled = !status?.connected && !keyStatus.saved;
+  element('disconnect').disabled = !status?.connected && !pairingState.approved;
   const target = config?.exportUrl;
   const safeTarget = typeof target === 'string' && /^https:\/\/(?:my\.)?feishu\.cn\/base\/[A-Za-z0-9]+\?table=tbl[A-Za-z0-9]+$/.test(target);
   element('export-target').hidden = !status?.connected || !safeTarget;
@@ -248,7 +248,7 @@ function renderConnection(status) {
   if (safeTarget) element('export-target').href = target; else element('export-target').removeAttribute('href');
   element('export-target-note').textContent = t(config?.exportAvailable ? 'exportConfigured' : 'exportNotConfigured');
   element('schedule-note').textContent = config?.remindersAvailable ? t('schedule', { state: t(config.remindersEnabled ? 'on' : 'off'), zone: config.timeZone, time: config.reminderTime || '10:00' }) : t('scheduleUnavailable');
-  element('connection-meta').textContent = t('footer', { server: keyStatus.baseUrl || t('offline'), version: chrome.runtime.getManifest().version, extensionId: chrome.runtime.id || t('unverified'), protocol: status?.protocolVersion || t('unverified') });
+  element('connection-meta').textContent = t('footer', { server: pairingState.baseUrl || t('offline'), version: chrome.runtime.getManifest().version, extensionId: chrome.runtime.id || t('unverified'), protocol: status?.protocolVersion || t('unverified') });
   updateSyncButton(); renderPending();
   renderHome().catch(() => { element('home-status').textContent = t('genericFailure'); });
 }
@@ -260,12 +260,11 @@ function translatePage() {
   element('agent-task').value = t('agentTask', { extensionId: chrome.runtime.id || t('unverified') });
   applyRoute(currentRoute);
 }
-async function showConnection({ proposedKey = false, authorize = false } = {}) {
+async function showConnection({ verifyOnly = false, authorize = false } = {}) {
   const sequence = ++validationSequence;
   authError = null; pendingError = null; tableLinkError = null; checkingConnection = true;
   element('auth-status').textContent = t('checking');
   element('sync').disabled = true;
-  const value = '';
   try {
     const connectionUrl = endpointValue(element('connectionUrl').value);
     if (authorize && !await requestEndpointPermission(connectionUrl)) throw new Error(t('permissionDenied'));
@@ -273,16 +272,16 @@ async function showConnection({ proposedKey = false, authorize = false } = {}) {
     if (authorize) {
       const pair = await mutate({ type: 'PAIR_REQUEST', connectionUrl });
       if (sequence !== validationSequence) return;
-      pairingView = pair; renderKeyStatus();
+      pairingView = pair; renderPairingStatus();
       if (pair.status !== 'approved') { checkingConnection = false; renderConnection(null); return; }
     }
     const linkPayload = {};
-    const status = await mutate(proposedKey ? { type: 'VALIDATE_CONNECTION', provider: 'database', connectionUrl, ...linkPayload } : { type: 'CONNECTION_STATUS', provider: 'database', connectionUrl, ...linkPayload });
+    const status = await mutate(verifyOnly ? { type: 'VALIDATE_CONNECTION', provider: 'database', connectionUrl, ...linkPayload } : { type: 'CONNECTION_STATUS', provider: 'database', connectionUrl, ...linkPayload });
     if (sequence !== validationSequence) return;
     checkingConnection = false; renderConnection(status);
-    keyValidation = status.connected ? { message: value ? 'keyAccepted' : 'savedKeyAccepted' } : null; renderKeyStatus();
+    renderPairingStatus();
     pending = null; element('pending-card').hidden = true;
-    if (status.connected && !value) {
+    if (status.connected) {
       try {
         const result = await mutate({ type: 'PENDING' });
         if (sequence !== validationSequence) return;
@@ -293,9 +292,9 @@ async function showConnection({ proposedKey = false, authorize = false } = {}) {
     }
   } catch (error) {
     if (sequence !== validationSequence) return;
-    checkingConnection = false; authError = error.message; keyValidation = { error: error.message };
-    if (error.message.includes('PAIR_REQUIRED')) { pairingView = { status: 'unpaired' }; keyStatus.saved = false; keyStatus.matchesEndpoint = false; }
-    renderConnection(null); renderKeyStatus();
+    checkingConnection = false; authError = error.message;
+    if (error.message.includes('PAIR_REQUIRED')) { pairingView = { status: 'unpaired' }; pairingState.approved = false; }
+    renderConnection(null); renderPairingStatus();
     throw error;
   }
 }
@@ -324,7 +323,7 @@ async function init() {
   uiLanguage = chooseLanguage(savedLanguage);
   translatePage();
   applyRoute(initialRoute(location.hash, false));
-  globalThis.addEventListener?.('hashchange', () => applyRoute(initialRoute(location.hash, connection?.connected && keyStatus.saved && keyStatus.matchesEndpoint && !element('sync').disabled)));
+  globalThis.addEventListener?.('hashchange', () => applyRoute(initialRoute(location.hash, connection?.connected && pairingState.approved && !element('sync').disabled)));
   await renderList();
   await showSyncStatus();
   fillSettings(await getSettings());
@@ -333,20 +332,20 @@ async function init() {
     try { await navigator.clipboard.writeText(element('agent-task').value); element('copy-agent-status').textContent = t('taskCopied'); }
     catch { element('task-preview').open = true; element('agent-task').focus(); element('agent-task').select(); element('copy-agent-status').textContent = t('taskCopyFallback'); }
   });
-  await refreshKeyStatus();
+  await refreshPairingStatus();
   renderConnection(null);
-  element('connectionUrl').addEventListener('input', () => { validationSequence++; checkingConnection = false; pending = null; connection = null; keyValidation = null; pairingView = null; authError = null; renderConnection(null); renderKeyStatus(); addressFeedback(); });
+  element('connectionUrl').addEventListener('input', () => { validationSequence++; checkingConnection = false; pending = null; connection = null; pairingView = null; authError = null; renderConnection(null); renderPairingStatus(); addressFeedback(); });
   element('ui-language').addEventListener('change', async () => {
     uiLanguage = chooseLanguage(element('ui-language').value); preferencesDirty = true;
     await chrome.storage.local.set({ uiLanguage });
-    translatePage(); renderKeyStatus(); renderConnection(connection);
+    translatePage(); renderPairingStatus(); renderConnection(connection);
     await renderList(); await renderHome(); await showSyncStatus();
   });
   for (const id of ['reminderTime', 'timeZone']) element(id).addEventListener('change', () => { preferencesDirty = true; });
   element('disconnect').addEventListener('click', async () => {
-    validationSequence++; checkingConnection = false; tableLinkError = null; keyValidation = null; pendingError = null;
+    validationSequence++; checkingConnection = false; tableLinkError = null; pendingError = null;
     try { await mutate({ type: 'DISCONNECT' }); connection = null; pending = null; preferencesDirty = false; authError = null;
-      fillSettings({ language: uiLanguage }); await refreshKeyStatus(); renderConnection(null); await renderList(); applyRoute('settings');
+      fillSettings({ language: uiLanguage }); await refreshPairingStatus(); renderConnection(null); await renderList(); applyRoute('settings');
     } catch (error) { element('auth-status').textContent = errorText(error); }
   });
   element('remindersEnabled').addEventListener('change', () => { preferencesDirty = true; });
@@ -356,7 +355,7 @@ async function init() {
     if (sequence !== validationSequence) throw new Error('Connection settings changed during the request. Retry.');
     const result = await mutate({ type: 'SAVE_SETTINGS', settings });
     preferencesDirty = false; fillSettings(result.settings);
-    await refreshKeyStatus();
+    await refreshPairingStatus();
     flashSaved(); await showConnection(); await renderList();
   });
   async function exportLibrary(type) {
@@ -375,14 +374,14 @@ async function init() {
   }
   bindAction('export-table', () => exportLibrary('EXPORT_TABLE'));
   bindAction('export-csv', () => exportLibrary('EXPORT_CSV'));
-  bindAction('check-connection', () => showConnection({ proposedKey: true, authorize: true }));
+  bindAction('check-connection', () => showConnection({ verifyOnly: true, authorize: true }));
   bindAction('sync', async () => { await mutate({ type: 'SYNC' }); await showSyncStatus(); await showConnection(); });
   for (const [id, outcome] of [['confirm-sent', 'sent'], ['confirm-not-sent', 'not-sent']]) {
     bindAction(id, async () => { await mutate({ type: 'RESOLVE_PENDING', uuid: pending?.id, outcome }); await showConnection(); });
   }
   try { await showConnection(); } catch { /* showConnection renders the failure. */ }
 
-  const configured = connection?.connected && keyStatus.saved && keyStatus.matchesEndpoint && !element('sync').disabled;
+  const configured = connection?.connected && pairingState.approved && !element('sync').disabled;
   applyRoute(initialRoute(location.hash, configured));
   await renderHome(); await renderList();
 
