@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createKnowledgeService, ARTICLE_FIELDS, LEGACY_ARTICLE_FIELDS, TOPIC_FIELDS, normalizeArticle } from '../src/lib/bitable.js';
+import { createKnowledgeService, ARTICLE_FIELDS, LEGACY_ARTICLE_FIELDS, TOPIC_FIELDS, normalizeArticle } from '../connector/lib/bitable.js';
 import { mergeKnowledge } from '../src/lib/knowledge.js';
-import { eligibleItems } from '../src/lib/batch.js';
-import { buildReadingMessage } from '../src/lib/messages.js';
+import { eligibleItems } from '../connector/lib/batch.js';
+import { buildReadingMessage } from '../connector/lib/messages.js';
 
 const config = { baseToken: 'base123', articleTableId: 'tblArticles', topicTableId: 'tblTopics' };
 const capture = { id: 'local1', title: 'Article', url: 'https://example.com/a', savedAt: '2026-10-12T01:00:00Z', read: false };

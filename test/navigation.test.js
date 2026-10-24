@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { initialRoute } from '../src/lib/navigation.js';
 import { isUnread, readingStatus } from '../src/lib/reading-state.js';
-import { eligibleItems } from '../src/lib/batch.js';
+import { eligibleItems } from '../connector/lib/batch.js';
 import { fixture } from '../test-support/connector-fixture.js';
 
 test('unconfigured default opens settings; explicit home/collection/settings remain distinct views', () => {

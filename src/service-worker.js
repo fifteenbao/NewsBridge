@@ -3,6 +3,8 @@ import { SafeError, safeErrorMessage } from './lib/security.js';
 import { getItems, setItems, setSettings, setRead, setReadingStatus, addItem, deleteItem, getConnectionKeyStatus, disconnectCollection } from './lib/storage.js';
 import { callKnowledge, mergeKnowledge } from './lib/knowledge.js';
 import { callConnection, connectionStatus, pendingDelivery, resolveDelivery } from './lib/connection.js';
+import { normalizeCaptureMetadata } from './lib/capture-metadata.js';
+import { isSafeArticleUrl } from './lib/security.js';
 
 let queue = Promise.resolve();
 function enqueue(work) {
@@ -13,22 +15,28 @@ function enqueue(work) {
 async function reportError(error) {
   await chrome.action.setBadgeText({ text: '!' });
   await chrome.action.setBadgeBackgroundColor({ color: '#9f401f' });
-  await chrome.action.setTitle({ title: safeErrorMessage(error) + ' — Right-click NewsBridge to open Settings.' });
+  await chrome.action.setTitle({ title: safeErrorMessage(error) + ' — Right-click ReadFlow to open Settings.' });
 }
 async function syncReadingLibrary() {
   try {
     const result = await callKnowledge('sync', { items: await getItems() });
-    if (result.enabled) await setItems(mergeKnowledge(await getItems(), result));
+    if (result.enabled) {
+      const merged = mergeKnowledge(await getItems(), result);
+      await setItems(merged);
+      if (merged.some(item => item.metadataUpdate && !item.feishuDeleted)) throw new SafeError('Tags or remarks are still pending. Check the ReadFlow service before retrying.');
+    }
     const error = result.notifications?.error || null;
-    await chrome.storage.local.set({ knowledgeSync: { enabled: result.enabled, at: Date.now(), error } });
+    await chrome.storage.local.set({ knowledgeSync: { enabled: result.enabled, at: Date.now(), error,
+      tagOptions: result.captureMetadata?.tagOptions || [] } });
     if (error) await reportError(new SafeError(error));
     else {
       await chrome.action.setBadgeText({ text: '' });
-      await chrome.action.setTitle({ title: 'NewsBridge — Home, Collection and Settings' });
+      await chrome.action.setTitle({ title: 'ReadFlow — Home, Collection and Settings' });
     }
     return result;
   } catch (error) {
-    await chrome.storage.local.set({ knowledgeSync: { enabled: true, error: safeErrorMessage(error) } });
+    const { knowledgeSync } = await chrome.storage.local.get('knowledgeSync');
+    await chrome.storage.local.set({ knowledgeSync: { ...knowledgeSync, enabled: true, error: safeErrorMessage(error) } });
     await reportError(error);
     throw error;
   }
@@ -50,10 +58,10 @@ chrome.runtime.onInstalled.addListener((details = {}) => {
     chrome.contextMenus.create({ id: 'open-settings', title: 'Settings', contexts: ['action'] });
     chrome.contextMenus.create({ id: 'sync-knowledge', title: 'Sync reading library', contexts: ['action'] });
   });
-  enqueue(async () => { await initializeAlarms(); await syncReadingLibrary(); }).catch(() => console.warn('NewsBridge operation failed; check Settings.'));
+  enqueue(async () => { await initializeAlarms(); await syncReadingLibrary(); }).catch(() => console.warn('ReadFlow operation failed; check Settings.'));
 });
 chrome.contextMenus.onClicked.addListener(info => {
-  if (info.menuItemId === 'sync-knowledge') enqueue(syncReadingLibrary).catch(() => console.warn('NewsBridge operation failed; check Settings.'));
+  if (info.menuItemId === 'sync-knowledge') enqueue(syncReadingLibrary).catch(() => console.warn('ReadFlow operation failed; check Settings.'));
   else chrome.tabs.create({ url: chrome.runtime.getURL('src/options.html') +
     (info.menuItemId === 'open-settings' ? '#settings' : info.menuItemId === 'open-home' ? '' : '#reading-list') });
 });
@@ -62,23 +70,23 @@ chrome.alarms.onAlarm.addListener(alarm => {
   enqueue(async () => {
     const { knowledgeSync } = await chrome.storage.local.get('knowledgeSync');
     if (knowledgeSync?.enabled) await syncReadingLibrary();
-  }).catch(() => console.warn('NewsBridge operation failed; check Settings.'));
+  }).catch(() => console.warn('ReadFlow operation failed; check Settings.'));
 });
 chrome.runtime.onStartup.addListener(() => {
-  enqueue(async () => { await initializeAlarms(); await syncReadingLibrary(); }).catch(() => console.warn('NewsBridge operation failed; check Settings.'));
+  enqueue(async () => { await initializeAlarms(); await syncReadingLibrary(); }).catch(() => console.warn('ReadFlow operation failed; check Settings.'));
 });
-async function capturePage(tab) {
+async function capturePage(tab, metadata = {}) {
   if (!/^https?:\/\//i.test(tab?.url || '')) {
     const error = new SafeError('This page cannot be saved. Open an HTTP(S) article or video page and try again.');
     await reportError(error); throw error;
   }
-  try { await addItem({ url: tab.url, title: tab.title }); }
+  try { await addItem({ url: tab.url, title: tab.title, metadata }); }
   catch (error) { await reportError(error); throw error; }
   await showCaptureFeedback('Saved locally', 'Checking reading sync…');
   try {
     const result = await syncReadingLibrary();
     const error = result.notifications?.error || null;
-    await showCaptureFeedback('Saved to NewsBridge', error || (result.enabled ? 'Synced with Feishu Bitable.' : 'Saved locally. Configure a connection to enable Feishu sync.'), !!error);
+    await showCaptureFeedback('Saved to ReadFlow', error || (result.enabled ? 'Synced with the ReadFlow database.' : 'Saved locally. Connect ReadFlow to back up this capture.'), !!error);
     return { ok: true, saved: true, synced: result.enabled === true, error };
   } catch (error) {
     await showCaptureFeedback('Saved locally — sync failed', safeErrorMessage(error), true);
@@ -87,24 +95,44 @@ async function capturePage(tab) {
 }
 // Fallback for builds without a popup; the shipped action opens popup.html.
 chrome.action.onClicked.addListener(tab => {
-  enqueue(() => capturePage(tab)).catch(error => { if (!(error instanceof SafeError)) console.warn('NewsBridge operation failed; check Settings.'); });
+  enqueue(() => capturePage(tab)).catch(error => { if (!(error instanceof SafeError)) console.warn('ReadFlow operation failed; check Settings.'); });
 });
 // Serialize dashboard mutations with background sync, so local writes do not
-// overwrite a newer Feishu snapshot while a send is in flight.
+// overwrite a newer database snapshot while a send is in flight.
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   const source = sender.url?.split(/[?#]/)[0];
   const fromOptions = source === chrome.runtime.getURL('src/options.html');
   const fromPopup = source === chrome.runtime.getURL('src/popup.html');
   if (sender.id !== chrome.runtime.id || sender.frameId !== undefined && sender.frameId !== 0 || !fromOptions && !fromPopup) return;
-  if (fromPopup && message?.type !== 'CAPTURE_PAGE') return;
-  if (fromOptions && message?.type === 'CAPTURE_PAGE') return;
-  if (!['CAPTURE_PAGE', 'SET_STATUS', 'SET_READ', 'DELETE_ITEM', 'SAVE_SETTINGS', 'CONNECTION_STATUS', 'SYNC', 'PENDING', 'RESOLVE_PENDING', 'VALIDATE_CONNECTION', 'KEY_STATUS', 'DISCONNECT', 'PAIR_REQUEST', 'PAIR_STATUS'].includes(message?.type)) return;
+  if (fromPopup && !['CAPTURE_PAGE', 'CAPTURE_CONTEXT', 'POPUP_STATUS'].includes(message?.type)) return;
+  if (fromOptions && ['CAPTURE_PAGE', 'CAPTURE_CONTEXT'].includes(message?.type)) return;
+  if (!['POPUP_STATUS', 'CAPTURE_PAGE', 'CAPTURE_CONTEXT', 'SET_STATUS', 'SET_READ', 'DELETE_ITEM', 'SAVE_SETTINGS', 'CONNECTION_STATUS', 'SYNC', 'PENDING', 'RESOLVE_PENDING', 'VALIDATE_CONNECTION', 'KEY_STATUS', 'DISCONNECT', 'PAIR_REQUEST', 'PAIR_STATUS', 'EXPORT_TABLE', 'EXPORT_CSV'].includes(message?.type)) return;
   if (!message || typeof message !== 'object' || JSON.stringify(message).length > 8192) { reply({ ok: false, error: 'Invalid request.' }); return; }
   enqueue(async () => {
+    if (message.type === 'EXPORT_TABLE') return callConnection('export');
+    if (message.type === 'EXPORT_CSV') return callConnection('csv');
+    if (message.type === 'POPUP_STATUS') {
+      const { collectionIdentity, localCaptureMode } = await chrome.storage.local.get(['collectionIdentity', 'localCaptureMode']);
+      const pair = await getPairingStatus();
+      if (!collectionIdentity || !pair.approved) return { ok: true, connected: false, localOnly: localCaptureMode === true };
+      return { ok: true, connected: true }; // A prior pairing permits capture even while the service is offline.
+    }
     if (message.type === 'CAPTURE_PAGE') {
+      if (Object.keys(message).some(key => !['type', 'metadata', 'expectedUrl'].includes(key))) throw new SafeError('Invalid capture request.');
+      const metadata = normalizeCaptureMetadata(message.metadata);
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (message.expectedUrl !== undefined && message.expectedUrl !== tab?.url) throw new SafeError('The active page changed. Reopen the popup before saving.');
+      return capturePage(tab, metadata);
+    }
+    if (message.type === 'CAPTURE_CONTEXT') {
       if (Object.keys(message).some(key => key !== 'type')) throw new SafeError('Invalid capture request.');
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      return capturePage(tab);
+      if (!isSafeArticleUrl(tab?.url)) throw new SafeError('This page cannot be saved. Open an HTTP(S) article or video page and try again.');
+      const items = await getItems();
+      const item = items.find(item => item.url === tab.url && !item.feishuDeleted);
+      const { knowledgeSync } = await chrome.storage.local.get('knowledgeSync');
+      return { ok: true, url: tab.url, title: tab.title || tab.url, tags: item?.tags || [], remark: item?.remark || '',
+        tagOptions: [...new Set([...(item?.tags || []), ...(knowledgeSync?.tagOptions || []), ...items.flatMap(item => item.tags || [])])].slice(0, 200) };
     }
     if (['SET_READ', 'SET_STATUS', 'DELETE_ITEM'].includes(message.type) && (typeof message.id !== 'string' || message.id.length > 512)) throw new SafeError('Invalid item ID.');
     if (message.type === 'DISCONNECT') return disconnectCollection();
@@ -131,7 +159,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       await setRead(message.id, message.read);
     } else {
       const item = (await getItems()).find(item => item.id === message.id);
-      if (item?.feishuRecordId) throw new SafeError('Delete linked items in Feishu Bitable, then sync.');
+      if (item?.feishuRecordId) throw new SafeError('Database item deletion is not available in this view.');
       await deleteItem(message.id);
     }
     return { ok: true };
@@ -145,4 +173,4 @@ async function showCaptureFeedback(title, note, warning = false) {
   await chrome.action.setTitle({ title: title + ' · ' + note + ' — Right-click → Reading list.' });
 }
 // Alarms can disappear on restart/update; restore them whenever the worker loads.
-enqueue(initializeAlarms).catch(() => console.warn('NewsBridge operation failed; check Settings.'));
+enqueue(initializeAlarms).catch(() => console.warn('ReadFlow operation failed; check Settings.'));

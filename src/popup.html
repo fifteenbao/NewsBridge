@@ -3,14 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NewsBridge</title>
+  <title>ReadFlow</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="popup">
-  <header class="brand"><span class="mark">NewsBridge</span></header>
+  <header class="popup-header"><span class="mark">ReadFlow</span><label><span class="sr-only" data-i18n="interfaceLanguage">Interface language</span><select id="popup-language"><option value="en">English</option><option value="zh">简体中文</option></select></label></header>
+  <p id="popup-connection" class="connection-badge" role="status"></p>
+  <section id="setup-welcome" class="setup-welcome">
+    <h1 data-i18n="welcomeTitle">Your reading starts here</h1>
+    <p data-i18n="welcomeBody">Connect your ReadFlow library, or try local capture first.</p>
+    <ol><li data-i18n="welcomeStep1">Ask your agent to prepare the ReadFlow service and database.</li><li data-i18n="welcomeStep2">Paste the service address in Settings. Feishu is optional.</li><li data-i18n="welcomeStep3">Approve pairing, check and save. Captures then sync to your database.</li></ol>
+    <button id="start-setup" class="btn-primary" data-i18n="startSetup">Set up connection</button>
+    <button id="local-capture" class="secondary-btn" data-i18n="tryLocal">Save locally for now</button>
+    <p class="field-hint" data-i18n="welcomeHelp">Settings includes a task you can copy to your agent. ReadFlow does not contain an AI chat.</p>
+  </section>
+  <section id="capture-editor" hidden>
   <p class="card-note" data-i18n="popupHint">Save this page, or open your collection and settings.</p>
+  <p id="capture-page-title" class="capture-page-title"></p>
+  <fieldset id="capture-tags-fieldset" disabled class="capture-tags" aria-describedby="capture-tags-hint capture-status">
+    <legend data-i18n="captureTags">Tags (multiple)</legend>
+    <p id="capture-tags-hint" class="field-hint" data-i18n="captureTagsHint">Choose tags or add your own. Up to 20 tags, 50 characters each.</p>
+    <div id="capture-tag-options" class="capture-tag-options"></div>
+    <p id="capture-tags-empty" class="field-hint" data-i18n="captureTagsEmpty">No tags yet. Add your first tag below.</p>
+    <label for="capture-new-tag" data-i18n="captureNewTag">New tag</label>
+    <div class="capture-tag-entry"><input id="capture-new-tag" type="text" maxlength="50" autocomplete="off" aria-describedby="capture-tags-hint capture-status" /><button id="capture-add-tag" type="button" data-i18n="captureAddTag">Add</button></div>
+  </fieldset>
+  <label for="capture-remark" data-i18n="captureRemark">Remark</label>
+  <textarea disabled id="capture-remark" rows="3" maxlength="2000" aria-describedby="capture-remark-hint capture-status"></textarea>
+  <p id="capture-remark-hint" class="field-hint" data-i18n="captureRemarkHint">Why did you save this? What should a future AI Review help with? Optional, up to 2000 characters.</p>
   <button class="btn-primary" id="capture" data-i18n="capture">Save this page</button>
-  <nav class="popup-nav" aria-label="NewsBridge">
+  </section>
+  <nav class="popup-nav" aria-label="ReadFlow">
     <button id="open-home" data-i18n="home">Home</button>
     <button id="open-collection" data-i18n="collection">Collection</button>
     <button id="open-settings" data-i18n="settings">Settings</button>

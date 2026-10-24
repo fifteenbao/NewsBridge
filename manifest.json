@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "NewsBridge",
-  "version": "0.3.0",
-  "description": "Save articles and videos. Manage your reading collection in Feishu Bitable or Google Sheets.",
+  "name": "ReadFlow",
+  "version": "0.4.1",
+  "description": "收藏文章与视频到 ReadFlow 资料库，可选飞书阅读提醒、手动表格同步与 CSV 导出。",
   "action": {
-    "default_title": "NewsBridge",
+    "default_title": "ReadFlow",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",

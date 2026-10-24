@@ -115,18 +115,18 @@ test('browser-to-handler round trip verifies capabilities and pins identity befo
 });
 
 test('base-path connection reaches only its mounted routes and refuses key reuse on another path', async () => {
-  const f = fixture(), local = { connectionAccessKey: key, connectionBaseUrl: origin + '/newsbridge/' };
-  const handle = handlerFor(f, { baseUrl: origin + '/newsbridge/' });
+  const f = fixture(), local = { connectionAccessKey: key, connectionBaseUrl: origin + '/readflow/' };
+  const handle = handlerFor(f, { baseUrl: origin + '/readflow/' });
   const urls = [];
-  const call = createConnectionClient({ authentication: 'bearer', baseUrl: origin + '/newsbridge', storage: area(local), fetchImpl: async (url, options) => {
+  const call = createConnectionClient({ authentication: 'bearer', baseUrl: origin + '/readflow', storage: area(local), fetchImpl: async (url, options) => {
     urls.push(url); return handle(new Request(url, options));
   } });
   await call('health'); await call('sync');
-  assert.deepEqual(urls, [origin + '/newsbridge/v1/health', origin + '/newsbridge/v1/sync']);
-  for (const path of ['/v1/health', '/newsbridge-other/v1/health', '/newsbridge//v1/health', '/newsbridge/v1/health/']) {
+  assert.deepEqual(urls, [origin + '/readflow/v1/health', origin + '/readflow/v1/sync']);
+  for (const path of ['/v1/health', '/readflow-other/v1/health', '/readflow//v1/health', '/readflow/v1/health/']) {
     assert.equal((await handle(request({ path }))).status, 404);
   }
-  assert.equal((await handle(request({ path: '/newsbridge/v1/health', headers: { Authorization: '' } }))).status, 401);
+  assert.equal((await handle(request({ path: '/readflow/v1/health', headers: { Authorization: '' } }))).status, 401);
   const changedPath = createConnectionClient({ authentication: 'bearer', baseUrl: origin + '/another/', storage: area(local), fetchImpl: () => assert.fail('key must not cross base paths') });
   await assert.rejects(changedPath('health'), /Disconnect.*connection address/);
 });

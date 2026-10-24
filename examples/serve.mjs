@@ -34,6 +34,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (!Number.isSafeInteger(port) || port < 1024 || port > 65535) throw new Error();
     const server = createNodeServer({ ...host, baseUrl: config.baseUrl });
     server.on('error', () => { console.error('Could not start the loopback connection server.'); process.exitCode = 1; });
-    server.listen(port, '127.0.0.1', () => console.log('NewsBridge connection ready on loopback; expose only through your authenticated HTTPS configuration.'));
+    server.listen(port, '127.0.0.1', () => console.log('ReadFlow connection ready on loopback; expose only through your authenticated HTTPS configuration.'));
   } catch { console.error('Connection startup failed. Use: node examples/serve.mjs private/host.json [--env private/host.env]. Check private configuration, environment and state initialization.'); process.exitCode = 1; }
 }

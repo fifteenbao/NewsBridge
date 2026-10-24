@@ -1,6 +1,7 @@
-import { ARTICLE_FIELDS } from '../src/lib/bitable.js';
+import { CAPTURE_FIELDS } from '../src/lib/capture-metadata.js';
+import { ARTICLE_FIELDS } from '../connector/lib/bitable.js';
 import { createConnector } from '../connector/runtime.js';
-export function fixture({ remindersEnabled = true, clock } = {}) {
+export function fixture({ remindersEnabled = true, clock, captureMetadata = false } = {}) {
   let time = Date.UTC(2026, 9, 13, 1), state = { version: 1, scopes: {} }, identity = 'test-user', queue = Promise.resolve();
   const config = { connectionId: 'test-user', baseToken: 'baseTest', articleTableId: 'tblTest', chatId: 'oc_test', remindersEnabled,
     timeZone: 'Asia/Shanghai', language: 'en' };
@@ -10,7 +11,7 @@ export function fixture({ remindersEnabled = true, clock } = {}) {
     capabilities: { tableRead: true, tableWrite: true, messages: true },
     getIdentity: async () => ({ connectionId: identity }),
     request: async (method, path, { data } = {}) => {
-      if (path.endsWith('/fields')) return { code: 0, data: { items: Object.entries(ARTICLE_FIELDS).map(([field_name, type]) => ({ field_name, type })) } };
+      if (path.endsWith('/fields')) return { code: 0, data: { items: Object.entries({ ...ARTICLE_FIELDS, ...(captureMetadata ? CAPTURE_FIELDS : {}) }).map(([field_name, type]) => ({ field_name, type, ...(field_name === '标签' ? { property: { options: [{ name: 'AI' }, { name: 'Research' }] } } : {}) })) } };
       if (path.endsWith('/messages')) { sends.push(data); return { code: 0, data: { message_id: `om_${sends.length}` } }; }
       if (method === 'PUT') {
         writes.push(data); Object.assign(records.find(r => r.record_id === path.split('/').at(-1)).fields, data.fields);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { eligibleItems, nextBatch, MAX_ITEMS_PER_MESSAGE } from '../src/lib/batch.js';
+import { eligibleItems, nextBatch, MAX_ITEMS_PER_MESSAGE } from '../connector/lib/batch.js';
 const item = (id, extra = {}) => ({ id, url: `https://example.com/${id}`, read: false,
   savedAt: `2026-01-${String(id + 1).padStart(2, '0')}`, ...extra });
 

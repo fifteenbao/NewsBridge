@@ -1,4 +1,4 @@
-import { isSafeArticleUrl, SafeError } from './security.js';
+import { isSafeArticleUrl } from '../../src/lib/security.js';
 // notifiedAt represents delivery for the current daily run during selection.
 export function eligibleItems(items) {
   return items.filter(item => !item.read && item.status !== '跳过' && !item.notifiedAt && !item.feishuDeleted && isSafeArticleUrl(item.url))

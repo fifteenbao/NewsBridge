@@ -6,21 +6,23 @@
 - A request such as “connect directly to Feishu APIs” or “improve security” does not by itself authorize selecting a cloud provider or introducing an additional architectural dependency.
 - Read-only investigation, fixes within the accepted architecture, local tests, and documentation may proceed without repeated permission questions.
 - If a change cannot be completed within the accepted scope, explain the blocker and ask for the missing decision rather than silently expanding the architecture.
-- NewsBridge is a portable Chrome extension with an optional provider-neutral connection contract. Do not require a particular CLI, cloud provider, server OS, process manager, or agent product. Existing tools may implement the contract; never claim compatibility without testing their table and message capabilities.
+- ReadFlow is a portable Chrome extension with an optional provider-neutral connection contract. Do not require a particular CLI, cloud provider, server OS, process manager, or agent product. Existing tools may implement the contract; never claim compatibility without testing their table and message capabilities.
 - Public defaults have no endpoint or granted host permissions. Users may configure an HTTPS endpoint in Settings: declare HTTPS hosts as optional and request only the chosen exact host from a user gesture. A private extension build may prefill one exact HTTPS origin chosen by the operator. Keep real domains, identities and credentials out of source and public packages. Do not introduce listeners or infrastructure automatically.
 - Agent-assisted setup should inspect capabilities, configure an existing connection, validate the contract, and report missing capabilities. It must not rewrite core source or silently deploy new services.
 
 ## Product boundaries
 
-- Position NewsBridge as an open-source Chrome extension for saving articles, videos, and other content that takes time to understand, with Feishu Bitable or Google Sheets as the user-selected data-management workspace. The core workflow is capture, organize, read or watch, take notes, and review related material.
-- Capture stores page titles and links. Do not imply video downloading, transcription, automatic playback tracking, or AI knowledge synthesis unless those features are explicitly requested and implemented.
+- Position ReadFlow as an open-source Chrome extension for saving articles, videos, and other content that takes time to understand, with the server SQLite database as the sole source of truth. Feishu Bitable is optional manual one-way output; CSV exports come from the database. Retain Chrome capture and support explicitly configured Feishu private-message link intake. Do not reintroduce other spreadsheet providers. The core workflow is capture, organize, read or watch, take notes, and review related material.
+- Capture stores page titles, links, optional multi-select 标签 and text 备注. Explicit capture metadata edits may update only those two columns; ordinary sync must preserve database edits and personal 笔记. Never reverse-import Bitable edits. Do not imply video downloading, transcription, automatic playback tracking, or AI knowledge synthesis unless those features are explicitly requested and implemented.
+- Product direction is recorded in docs/MVP-PRD.md. AI Review is a proposed product capability, not a shipped feature; do not imply it exists until implemented and verified.
 - Keep reading-state synchronization part of the core workflow. Daily unread reminders are an optional supporting feature, triggered by the operator’s existing scheduler using the custom time/timezone in Settings (10:00 Asia/Shanghai by default). Chrome must never independently send daily reminders. Scheduling and durable storage belong to the chosen integration environment.
 - Do not add calendar booking or product-specific agent connectors. A generic adapter interface is authorized.
 - Do not add or redesign frontend pages as part of documentation, backend, or security work. Necessary changes to existing page logic should be limited to verified security or functional fixes, and their purpose should be explained.
-- Keep English and Simplified Chinese documentation aligned, preserve upstream attribution and the MIT license, and avoid personal credentials in committed examples.
+- Maintain Chinese as the primary documentation language. Do not create parallel translated documents until requested. Preserve upstream attribution and the MIT license; keep personal credentials out of examples.
 
 ## Release versioning
 
+- Check package/manifest alignment and regenerate versioned archives for every user-requested release. Record changes in CHANGELOG.md. Never commit, tag, push or publish without user authorization.
 - Release versions are chosen by the user. Keep manifest.json and package.json aligned; do not increment versions merely for internal edits or task iterations.
 
 ## Verification

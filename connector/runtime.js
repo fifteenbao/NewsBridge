@@ -1,15 +1,12 @@
-import { validateSchedule } from '../src/lib/reminder-schedule.js';
+import { validateSchedule, dueDate } from '../src/lib/reminder-schedule.js';
 import { createTableLinkResolver } from './table-link.js';
 import { createBridge } from './bridge.js';
 import { validateConnectorConfig } from './config.js';
 import { DiagnosticError, cleanDiagnostic } from '../src/lib/diagnostics.js';
 import { SafeError } from '../src/lib/security.js';
 
-export function dueDate(time, timeZone, reminderTime = '10:00') {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(time));
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  return `${values.hour}:${values.minute}` >= validateSchedule(reminderTime, timeZone).reminderTime ? `${values.year}-${values.month}-${values.day}` : null;
-}
+export { dueDate } from '../src/lib/reminder-schedule.js';
+
 const fields = {
   health: ['tableUrl'], sync: ['items'], read: ['base', 'recordId', 'read', 'status'], pending: [],
   resolve: ['uuid', 'outcome'], preferences: ['language', 'table', 'tableUrl', 'remindersEnabled', 'reminderTime', 'timeZone'],
@@ -47,8 +44,7 @@ export function createConnector({ config: input, adapter, store: inputStore, exc
     queue = next.catch(() => {});
     return next;
   };
-  const prefKey = JSON.stringify(identity);
-  const preferences = state => config.storageProvider === 'google' ? state.providerPreferences?.[prefKey] || {} : state.preferences || {};
+  const preferences = state => state.preferences || {};
   async function remindersEnabled() {
     const value = preferences(await store.load()).remindersEnabled;
     if (value !== undefined && typeof value !== 'boolean') throw new DiagnosticError('STATE_LOAD', 'state.load');
@@ -77,7 +73,7 @@ export function createConnector({ config: input, adapter, store: inputStore, exc
         await bridge('health', payload);
         const resolvedTable = payload.tableUrl !== undefined ? await resolveTableLink(payload.tableUrl) : undefined;
         const state = await store.load(); const next = { ...preferences(state), ...timing, language: payload.language, ...(payload.remindersEnabled !== undefined ? { remindersEnabled: payload.remindersEnabled } : {}) };
-        if (config.storageProvider === 'google') { state.providerPreferences ||= {}; state.providerPreferences[prefKey] = next; } else state.preferences = next;
+        state.preferences = next;
         await store.save(state);
         return { ok: true, protocolVersion: 1, identity, ...(resolvedTable ? { resolvedTable } : {}) };
       }

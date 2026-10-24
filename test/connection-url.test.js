@@ -5,7 +5,7 @@ import { parseConnectionUrl } from '../src/lib/connection-url.js';
 test('connection URLs normalize root and nested paths with one trailing slash', () => {
   for (const [input, expected] of [
     ['https://example.com', '/'], ['https://example.com/', '/'],
-    ['https://example.com/newsbridge', '/newsbridge/'], ['https://example.com/newsbridge/', '/newsbridge/'],
+    ['https://example.com/readflow', '/readflow/'], ['https://example.com/readflow/', '/readflow/'],
     ['https://example.com/tools/news-bridge_v2/', '/tools/news-bridge_v2/'],
   ]) assert.deepEqual(parseConnectionUrl(input), { baseUrl: 'https://example.com' + expected, origin: 'https://example.com', apiPath: expected + 'v1/' });
 });

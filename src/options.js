@@ -3,7 +3,6 @@ import { initialRoute, ROUTES } from './lib/navigation.js';
 import { chooseLanguage, translate, localizeError } from './lib/options-i18n.js';
 import { endpointValue, requestEndpointPermission } from './lib/endpoint.js';
 import { validateSchedule } from './lib/reminder-schedule.js';
-import { parseTableUrl } from './lib/table-url.js';
 import { isSafeArticleUrl } from './lib/security.js';
 let uiLanguage = 'en', pairingView = null;
 const t = (key, values) => translate(uiLanguage, key, values);
@@ -169,7 +168,7 @@ function applyRoute(route) {
   for (const [id, view] of [['nav-home', 'home'], ['nav-collection', 'reading-list'], ['nav-settings', 'settings']]) {
     if (view === currentRoute) element(id).setAttribute('aria-current', 'page'); else element(id).removeAttribute('aria-current');
   }
-  document.title = `NewsBridge · ${t(currentRoute === 'reading-list' ? 'collection' : currentRoute)}`;
+  document.title = `ReadFlow · ${t(currentRoute === 'reading-list' ? 'collection' : currentRoute)}`;
 }
 async function renderHome() {
   const items = (await getItems()).filter(item => !item.feishuDeleted);
@@ -178,59 +177,16 @@ async function renderHome() {
 }
 function fillSettings(settings) {
   element('connectionUrl').value = settings.connectionUrl ?? '';
-  element('provider').value = settings.provider || 'feishu';
   element('reminderTime').value = settings.reminderTime || '10:00';
   element('timeZone').value = settings.timeZone || 'Asia/Shanghai';
-  element('tableUrl').value = settings.tableUrl || '';
   element('remindersEnabled').checked = settings.remindersEnabled === true;
 }
-function tableFeedback() {
-  const input = element('tableUrl'), note = element('table-url-error');
-  input.removeAttribute('aria-invalid');
-  let table;
-  try { table = input.value.trim() ? parseTableUrl(input.value.trim()) : null; }
-  catch (error) {
-    element('table-id-source').textContent = t('idsEmpty');
-    input.setAttribute('aria-invalid', 'true'); note.textContent = errorText(error); return false;
-  }
-  if (table && (table.kind === 'google') !== (element('provider').value === 'google')) {
-    input.setAttribute('aria-invalid', 'true'); note.textContent = t('providerLinkMismatch'); element('table-id-source').textContent = ''; return false;
-  }
-  const config = connection?.connected ? connection.configuration : null;
-  const resolved = table?.kind === 'wiki' && connection?.connected && connection.resolvedTable?.url === table.url ? connection.resolvedTable : null;
-  const base = table?.kind === 'wiki' ? resolved?.baseToken : table?.baseToken;
-  const sameBase = !!config && base === config.baseToken;
-  if (!table) {
-    note.textContent = t('tableEmpty');
-    element('table-id-source').textContent = t(config ? 'idsServer' : 'idsEmpty'); return true;
-  }
-  if (tableLinkError?.url === table.url) {
-    input.setAttribute('aria-invalid', 'true'); note.textContent = errorText(tableLinkError.error);
-    element('table-id-source').textContent = t(table.kind === 'wiki' ? 'wikiPending' : 'idsParsed'); return false;
-  }
-  if (table.kind === 'wiki' && !resolved) {
-    note.textContent = t('wikiPending'); element('table-id-source').textContent = t('wikiPending');
-    return !connection?.connected;
-  }
-  const matches = sameBase && (!table.articleTableId || table.articleTableId === config.articleTableId);
-  element('table-id-source').textContent = t(matches ? table.kind === 'wiki' ? 'wikiVerified' : !table.articleTableId ? 'idsConfigured' : 'idsVerified' : 'idsParsed');
-  if (!config) { note.textContent = t(table.articleTableId ? 'tableFormat' : 'basePending'); return true; }
-  if (!matches) { input.setAttribute('aria-invalid', 'true'); note.textContent = t('tableMismatch'); return false; }
-  note.textContent = t('tableVerified'); return true;
-}
-function renderTableLabels() {
-  const google = element('provider').value === 'google';
-  element('table-link-label').setAttribute('data-i18n', google ? 'googleLink' : 'feishuLink');
-  element('table-link-label').textContent = t(google ? 'googleLink' : 'feishuLink');
-  element('table-url-hint').setAttribute('data-i18n', google ? 'googleLinkHint' : 'feishuLinkHint');
-  element('table-url-hint').textContent = t(google ? 'googleLinkHint' : 'feishuLinkHint');
-  element('tableUrl').placeholder = google ? 'https://docs.google.com/spreadsheets/d/…/edit#gid=0' : 'https://my.feishu.cn/base/…';
-}
 function updateSyncButton() {
-  const matches = tableFeedback();
   const endpoint = addressFeedback();
-  const ready = !!endpoint && endpoint === keyStatus.baseUrl && !checkingConnection && connection?.connected && keyStatus.saved && keyStatus.matchesEndpoint && matches;
+  const ready = !!endpoint && endpoint === keyStatus.baseUrl && !checkingConnection && connection?.connected && keyStatus.saved && keyStatus.matchesEndpoint;
   element('sync').disabled = !ready;
+  element('export-csv').disabled = !ready;
+  element('export-table').disabled = !ready || !connection?.configuration?.exportAvailable;
   element('sync-help').textContent = t(ready ? 'syncReady' : 'syncUnavailable');
 }
 function renderKeyStatus() {
@@ -259,9 +215,7 @@ function collectSettings() {
     for (const id of ['reminderTime', 'timeZone']) element(id).setAttribute('aria-invalid', 'true');
     element('schedule-note').textContent = errorText(error); element('reminderTime').focus(); throw error;
   }
-  if (!tableFeedback()) { element('tableUrl').focus(); throw new Error(element('table-url-error').textContent); }
-  const raw = element('tableUrl').value.trim();
-  return { connectionUrl, provider: element('provider').value, reminderTime: element('reminderTime').value, timeZone: element('timeZone').value, tableUrl: raw ? parseTableUrl(raw).url : '', language: uiLanguage,
+  return { connectionUrl, provider: 'database', reminderTime: element('reminderTime').value, timeZone: element('timeZone').value, language: uiLanguage,
     ...(!element('remindersEnabled').disabled ? { remindersEnabled: element('remindersEnabled').checked } : {}) };
 }
 async function showSyncStatus() {
@@ -284,11 +238,15 @@ function renderConnection(status) {
   if (!preferencesDirty) {
     if (config?.reminderTime) element('reminderTime').value = config.reminderTime;
     if (config?.timeZone) element('timeZone').value = config.timeZone;
-    if (config?.storageProvider) element('provider').value = config.storageProvider;
     element('remindersEnabled').checked = config?.remindersEnabled === true;
   }
-  element('provider').disabled = !!status?.connected;
-  renderTableLabels();
+  element('disconnect').disabled = !status?.connected && !keyStatus.saved;
+  const target = config?.exportUrl;
+  const safeTarget = typeof target === 'string' && /^https:\/\/(?:my\.)?feishu\.cn\/base\/[A-Za-z0-9]+\?table=tbl[A-Za-z0-9]+$/.test(target);
+  element('export-target').hidden = !status?.connected || !safeTarget;
+  element('export-target').textContent = t('openExportTable');
+  if (safeTarget) element('export-target').href = target; else element('export-target').removeAttribute('href');
+  element('export-target-note').textContent = t(config?.exportAvailable ? 'exportConfigured' : 'exportNotConfigured');
   element('schedule-note').textContent = config?.remindersAvailable ? t('schedule', { state: t(config.remindersEnabled ? 'on' : 'off'), zone: config.timeZone, time: config.reminderTime || '10:00' }) : t('scheduleUnavailable');
   element('connection-meta').textContent = t('footer', { server: keyStatus.baseUrl || t('offline'), version: chrome.runtime.getManifest().version, extensionId: chrome.runtime.id || t('unverified'), protocol: status?.protocolVersion || t('unverified') });
   updateSyncButton(); renderPending();
@@ -299,6 +257,7 @@ function translatePage() {
   element('ui-language').value = uiLanguage;
   for (const node of document.querySelectorAll('[data-i18n]')) node.textContent = t(node.getAttribute('data-i18n'));
   for (const node of document.querySelectorAll('[data-i18n-placeholder]')) node.setAttribute('placeholder', t(node.getAttribute('data-i18n-placeholder')));
+  element('agent-task').value = t('agentTask', { extensionId: chrome.runtime.id || t('unverified') });
   applyRoute(currentRoute);
 }
 async function showConnection({ proposedKey = false, authorize = false } = {}) {
@@ -317,9 +276,8 @@ async function showConnection({ proposedKey = false, authorize = false } = {}) {
       pairingView = pair; renderKeyStatus();
       if (pair.status !== 'approved') { checkingConnection = false; renderConnection(null); return; }
     }
-    const rawLink = element('tableUrl').value.trim();
-    const linkPayload = rawLink ? { tableUrl: parseTableUrl(rawLink).url } : {};
-    const status = await mutate(proposedKey ? { type: 'VALIDATE_CONNECTION', provider: element('provider').value, connectionUrl, ...linkPayload } : { type: 'CONNECTION_STATUS', provider: element('provider').value, connectionUrl, ...linkPayload });
+    const linkPayload = {};
+    const status = await mutate(proposedKey ? { type: 'VALIDATE_CONNECTION', provider: 'database', connectionUrl, ...linkPayload } : { type: 'CONNECTION_STATUS', provider: 'database', connectionUrl, ...linkPayload });
     if (sequence !== validationSequence) return;
     checkingConnection = false; renderConnection(status);
     keyValidation = status.connected ? { message: value ? 'keyAccepted' : 'savedKeyAccepted' } : null; renderKeyStatus();
@@ -336,10 +294,6 @@ async function showConnection({ proposedKey = false, authorize = false } = {}) {
   } catch (error) {
     if (sequence !== validationSequence) return;
     checkingConnection = false; authError = error.message; keyValidation = { error: error.message };
-    if (/LINK_|TABLE_MISMATCH|\.wiki\.resolve/.test(error.message)) {
-      try { tableLinkError = { url: parseTableUrl(element('tableUrl').value.trim()).url, error: error.message }; } catch { /* Format feedback handles invalid links. */ }
-      keyValidation = null;
-    }
     if (error.message.includes('PAIR_REQUIRED')) { pairingView = { status: 'unpaired' }; keyStatus.saved = false; keyStatus.matchesEndpoint = false; }
     renderConnection(null); renderKeyStatus();
     throw error;
@@ -352,7 +306,6 @@ function bindAction(id, action) {
     try { await action(); }
     catch (error) {
       element('sync-status').textContent = errorText(error);
-      if (error.message.includes('TABLE_MISMATCH')) { element('tableUrl').setAttribute('aria-invalid', 'true'); element('table-url-error').textContent = errorText(error); element('tableUrl').focus(); }
     } finally { if (id === 'sync') updateSyncButton(); else button.disabled = false; }
   });
 }
@@ -368,7 +321,7 @@ function flashSaved() {
 
 async function init() {
   const { uiLanguage: savedLanguage } = await chrome.storage.local.get('uiLanguage');
-  uiLanguage = chooseLanguage(savedLanguage, chrome.i18n?.getUILanguage() || globalThis.navigator?.language || 'en');
+  uiLanguage = chooseLanguage(savedLanguage);
   translatePage();
   applyRoute(initialRoute(location.hash, false));
   globalThis.addEventListener?.('hashchange', () => applyRoute(initialRoute(location.hash, connection?.connected && keyStatus.saved && keyStatus.matchesEndpoint && !element('sync').disabled)));
@@ -376,10 +329,13 @@ async function init() {
   await showSyncStatus();
   fillSettings(await getSettings());
 
+  element('copy-agent-task').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(element('agent-task').value); element('copy-agent-status').textContent = t('taskCopied'); }
+    catch { element('task-preview').open = true; element('agent-task').focus(); element('agent-task').select(); element('copy-agent-status').textContent = t('taskCopyFallback'); }
+  });
   await refreshKeyStatus();
   renderConnection(null);
   element('connectionUrl').addEventListener('input', () => { validationSequence++; checkingConnection = false; pending = null; connection = null; keyValidation = null; pairingView = null; authError = null; renderConnection(null); renderKeyStatus(); addressFeedback(); });
-  element('tableUrl').addEventListener('input', () => { validationSequence++; checkingConnection = false; tableLinkError = null; updateSyncButton(); });
   element('ui-language').addEventListener('change', async () => {
     uiLanguage = chooseLanguage(element('ui-language').value); preferencesDirty = true;
     await chrome.storage.local.set({ uiLanguage });
@@ -387,11 +343,10 @@ async function init() {
     await renderList(); await renderHome(); await showSyncStatus();
   });
   for (const id of ['reminderTime', 'timeZone']) element(id).addEventListener('change', () => { preferencesDirty = true; });
-  element('provider').addEventListener('change', () => { validationSequence++; connection = null; renderConnection(null); });
   element('disconnect').addEventListener('click', async () => {
     validationSequence++; checkingConnection = false; tableLinkError = null; keyValidation = null; pendingError = null;
     try { await mutate({ type: 'DISCONNECT' }); connection = null; pending = null; preferencesDirty = false; authError = null;
-      fillSettings({ language: 'en' }); await refreshKeyStatus(); renderConnection(null); await renderList(); applyRoute('settings');
+      fillSettings({ language: uiLanguage }); await refreshKeyStatus(); renderConnection(null); await renderList(); applyRoute('settings');
     } catch (error) { element('auth-status').textContent = errorText(error); }
   });
   element('remindersEnabled').addEventListener('change', () => { preferencesDirty = true; });
@@ -404,6 +359,22 @@ async function init() {
     await refreshKeyStatus();
     flashSaved(); await showConnection(); await renderList();
   });
+  async function exportLibrary(type) {
+    element('export-status').textContent = t('exportWorking');
+    try {
+      await mutate({ type: 'SYNC' });
+      const result = await mutate({ type });
+      if (type === 'EXPORT_CSV') {
+        if (typeof result.csv !== 'string') throw new Error(t('genericFailure'));
+        const url = URL.createObjectURL(new Blob([result.csv], { type: 'text/csv;charset=utf-8' }));
+        const link = document.createElement('a'); link.href = url; link.download = 'readflow.csv'; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      element('export-status').textContent = t(type === 'EXPORT_CSV' ? 'csvDone' : 'exportDone');
+    } catch (error) { element('export-status').textContent = errorText(error); }
+  }
+  bindAction('export-table', () => exportLibrary('EXPORT_TABLE'));
+  bindAction('export-csv', () => exportLibrary('EXPORT_CSV'));
   bindAction('check-connection', () => showConnection({ proposedKey: true, authorize: true }));
   bindAction('sync', async () => { await mutate({ type: 'SYNC' }); await showSyncStatus(); await showConnection(); });
   for (const [id, outcome] of [['confirm-sent', 'sent'], ['confirm-not-sent', 'not-sent']]) {

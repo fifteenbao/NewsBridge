@@ -37,7 +37,7 @@ export async function signConnectionRequest(endpoint, url, body, storage = chrom
   const content = ['POST', url, stamp, nonce, digest].join('\n');
   const privateKey = await crypto.subtle.importKey('jwk', device.privateKey, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
   const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, privateKey, new TextEncoder().encode(content));
-  return { 'X-NewsBridge-Pair': binding.pairId, 'X-NewsBridge-Time': stamp, 'X-NewsBridge-Nonce': nonce, 'X-NewsBridge-Signature': encode(signature) };
+  return { 'X-ReadFlow-Pair': binding.pairId, 'X-ReadFlow-Time': stamp, 'X-ReadFlow-Nonce': nonce, 'X-ReadFlow-Signature': encode(signature) };
 }
 export async function getPairingStatus(storage = chrome.storage.local) {
   const data = await storage.get(['connectionEndpoint', 'connectionPairings']);

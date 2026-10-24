@@ -4,7 +4,7 @@ import { parseTableUrl } from './table-url.js';
 import { storedEndpoint, endpointValue, endpointPermission, collectionArchiveKey } from './endpoint.js';
 import { SafeError, readJsonResponse } from './security.js';
 import { parseConnectionUrl } from './connection-url.js';
-const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences']);
+const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences', 'export', 'csv']);
 export const validAccessKey = value => typeof value === 'string' && /^[A-Za-z0-9_-]{32,512}$/.test(value);
 const validIdentity = value => value && /^[A-Za-z0-9.@_:-]{1,254}$/.test(value.connectionId || '') && /^[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+$/.test(value.base || '');
 const sameIdentity = (a, b) => a.connectionId === b.connectionId && a.base === b.base;
@@ -32,8 +32,8 @@ export function createConnectionClient({ baseUrl, storage, fetchImpl, hasPermiss
       key = accessKey || (!switched ? stored.connectionAccessKey : '');
       if (!validAccessKey(key)) throw new SafeError(key ? formatDiagnostic({ code: 'KEY_INVALID', stage: 'identity' }) : 'Enter the connection access key in Settings.');
     }
-    const selectedProvider = provider || stored.connectionProvider || 'feishu';
-    if (!['feishu', 'google'].includes(selectedProvider)) throw new SafeError('Invalid storage provider.');
+    const selectedProvider = provider || stored.connectionProvider || (authentication === 'bearer' ? 'feishu' : 'database');
+    if (!['database', 'feishu'].includes(selectedProvider)) throw new SafeError('Invalid storage provider.');
     const body = JSON.stringify({ ...payload, provider: selectedProvider, ...(identity ? { expectedIdentity: identity } : {}) });
     if (new TextEncoder().encode(body).length > 20 * 1024 * 1024) throw new SafeError('Sync request exceeds 20 MiB.');
     const authHeaders = authentication === 'bearer' ? { Authorization: `Bearer ${key}` } : await signRequest(target, `${target}v1/${action}`, body, local);
@@ -54,7 +54,7 @@ export function createConnectionClient({ baseUrl, storage, fetchImpl, hasPermiss
     if (!response.ok || result.ok !== true) throw new SafeError(cleanDiagnostic(result.diagnostic) ? formatDiagnostic(result.diagnostic) : 'Connection operation failed. Check its authorization, permissions and private logs.');
     if (result.protocolVersion !== 1 || !validIdentity(result.identity)) throw new SafeError('Unsupported or invalid connection response.');
     if (identity && !sameIdentity(identity, result.identity)) throw new SafeError('Connection account or table differs from this collection. Disconnect in Settings before reassociating.');
-    if (action === 'health' && (result.configuration?.storageProvider || 'feishu') !== selectedProvider) throw new SafeError('The connection does not match the selected storage provider.');
+    if (action === 'health' && (result.configuration?.storageProvider || 'database') !== selectedProvider) throw new SafeError('The connection does not match the selected storage provider.');
     if (action === 'health' && (result.connected !== true || result.capabilities?.tableRead !== true || result.capabilities?.tableWrite !== true)) {
       throw new SafeError('This connection does not support table reading and writing.');
     }
@@ -64,6 +64,16 @@ export function createConnectionClient({ baseUrl, storage, fetchImpl, hasPermiss
           result.bindings.some(b => typeof b?.id !== 'string' || !/^rec[A-Za-z0-9]+$/.test(b.recordId || '')) ||
           result.articles.some(a => !/^rec[A-Za-z0-9]+$/.test(a?.recordId || '') || typeof a.read !== 'boolean' || typeof a.url !== 'string' || !Array.isArray(a.topicIds))) {
         throw new SafeError('Invalid table snapshot; local data was preserved.');
+      }
+      if (result.articles.some(article => article.tags !== undefined && (!Array.isArray(article.tags) || article.tags.length > 200 || article.tags.some(tag => typeof tag !== 'string' || tag.length > 1000)) ||
+          article.remark !== undefined && (typeof article.remark !== 'string' || article.remark.length > 64000))) {
+        throw new SafeError('Invalid capture metadata snapshot; local edits were preserved.');
+      }
+      if (result.captureMetadata !== undefined && (!result.captureMetadata || !Array.isArray(result.captureMetadata.tagOptions) || result.captureMetadata.tagOptions.length > 200 ||
+          result.captureMetadata.tagOptions.some(tag => typeof tag !== 'string' || tag.length > 50))) throw new SafeError('Invalid capture tag options.');
+      if (result.metadataBindings !== undefined && (!Array.isArray(result.metadataBindings) || result.metadataBindings.length > 5000 ||
+          result.metadataBindings.some(binding => typeof binding?.id !== 'string' || typeof binding.editId !== 'string' || binding.editId.length !== 36))) {
+        throw new SafeError('Invalid metadata acknowledgement; local edits were preserved.');
       }
     }
     if (payload.tableUrl !== undefined) {

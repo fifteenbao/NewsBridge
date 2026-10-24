@@ -32,15 +32,17 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
     tabs: { create: async value => opened.push(value.url) },
   };
   await seedApprovedBrowser(chrome.storage.local, 'https://connection.example.com/');
-  const f = fixture({ clock: () => time });
+  const f = fixture({ clock: () => time, captureMetadata: true });
   const { records, sends, runtime } = f;
-  let unavailable = false;
+  let unavailable = false, omitMetadataAcknowledgement = false;
   globalThis.fetch = async (url, options) => {
     if (unavailable) throw new Error('connection unavailable');
     assert.equal(new URL(url).origin, 'https://connection.example.com');
-    return Response.json(await runtime.dispatch(new URL(url).pathname.slice(4), JSON.parse(options.body)));
+    const result = await runtime.dispatch(new URL(url).pathname.slice(4), JSON.parse(options.body));
+    if (omitMetadataAcknowledgement) delete result.metadataBindings;
+    return Response.json(result);
   };
-  const outputRoot = await mkdtemp(join(tmpdir(), 'newsbridge-worker-'));
+  const outputRoot = await mkdtemp(join(tmpdir(), 'readflow-worker-'));
   t.after(() => rm(outputRoot, { recursive: true, force: true }));
   await writeFile(join(outputRoot, 'package.json'), '{"type":"module"}');
   const built = await buildExtension({ baseUrl: 'https://connection.example.com', outputRoot });
@@ -63,10 +65,10 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
   assert.equal(opened.at(-1), chrome.runtime.getURL('src/options.html') + '#settings');
   const saveSettings = settings => new Promise(resolve => chrome.runtime.onMessage.emit({ type: 'SAVE_SETTINGS', settings },
     { id: 'test', frameId: 0, url: chrome.runtime.getURL('src/options.html') }, resolve));
-  assert.equal((await saveSettings({ language: 'en', tableUrl: 'https://workspace.feishu.cn/base/baseTest?table=tblTest&view=vewTest' })).ok, true);
+  assert.equal((await saveSettings({ provider: 'feishu', language: 'en', tableUrl: 'https://workspace.feishu.cn/base/baseTest?table=tblTest&view=vewTest' })).ok, true);
   assert.equal(local.settings.tableUrl, 'https://workspace.feishu.cn/base/baseTest?table=tblTest');
   const previousSettings = structuredClone(local.settings);
-  assert.equal((await saveSettings({ language: 'zh', tableUrl: 'https://workspace.feishu.cn/base/baseOther?table=tblOther' })).ok, false);
+  assert.equal((await saveSettings({ provider: 'feishu', language: 'zh', tableUrl: 'https://workspace.feishu.cn/base/baseOther?table=tblOther' })).ok, false);
   assert.deepEqual(local.settings, previousSettings);
   const keyStatus = await new Promise(resolve => chrome.runtime.onMessage.emit({ type: 'KEY_STATUS' },
     { id: 'test', frameId: 0, url: chrome.runtime.getURL('src/options.html') }, resolve));
@@ -144,4 +146,21 @@ test('worker syncs capture/status through HTTPS; external scheduler exclusively 
   assert.equal(local.items.find(item => item.id === captured.id).read, true);
   assert.equal((await status('待阅读')).ok, true);
   assert.equal(local.items.find(item => item.id === captured.id).read, false);
+  const context = await popupSend({ type: 'CAPTURE_CONTEXT' }); assert.equal(context.url, 'https://example.com/popup-capture');
+  assert.ok(context.tagOptions.includes('AI'));
+  const metadata = { tags: ['AI', 'Product'], remark: 'Compare the evidence' };
+  assert.equal((await popupSend({ type: 'CAPTURE_PAGE', metadata, expectedUrl: context.url })).synced, true);
+  const remote = records.find(record => record.fields.链接?.link === context.url);
+  assert.deepEqual(remote.fields.标签, ['AI', 'Product']); assert.equal(remote.fields.备注, 'Compare the evidence');
+  assert.equal(local.items.find(item => item.url === context.url).metadataUpdate, undefined);
+  assert.equal((await popupSend({ type: 'CAPTURE_PAGE', metadata, expectedUrl: 'https://example.com/other' })).ok, false);
+  assert.equal((await popupSend({ type: 'CAPTURE_PAGE', metadata: { note: 'not allowed' } })).ok, false);
+  omitMetadataAcknowledgement = true;
+  const unconfirmed = await popupSend({ type: 'CAPTURE_PAGE', metadata: { remark: 'Unconfirmed edit' }, expectedUrl: context.url });
+  assert.equal(unconfirmed.saved, true); assert.equal(unconfirmed.synced, false); assert.match(unconfirmed.error, /still pending/);
+  assert.ok(local.items.find(item => item.url === context.url).metadataUpdate);
+  omitMetadataAcknowledgement = false;
+  await new Promise(resolve => chrome.runtime.onMessage.emit({ type: 'SYNC' }, { id: 'test', url: chrome.runtime.getURL('src/options.html') }, resolve));
+  assert.equal(local.items.find(item => item.url === context.url).metadataUpdate, undefined);
+
 });

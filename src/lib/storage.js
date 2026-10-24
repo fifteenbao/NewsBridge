@@ -5,11 +5,12 @@ import { SafeError, isSafeArticleUrl } from './security.js';
 import { callKnowledge } from './knowledge.js';
 import { callConnection } from './connection.js';
 import { getPairingStatus } from './pairing-client.js';
+import { normalizeCaptureMetadata } from './capture-metadata.js';
 import { storedEndpoint, endpointValue, releaseEndpointPermission, endpointPermission, collectionArchiveKey } from './endpoint.js';
 
 const ITEMS_KEY = 'items';
 const SETTINGS_KEY = 'settings';
-export const DEFAULT_SETTINGS = { language: 'en' };
+export const DEFAULT_SETTINGS = { language: 'zh' };
 
 export async function getItems() {
   const data = await chrome.storage.local.get(ITEMS_KEY);
@@ -18,15 +19,22 @@ export async function getItems() {
 export async function setItems(items) {
   await chrome.storage.local.set({ [ITEMS_KEY]: items });
 }
-export async function addItem({ url, title }) {
+export async function addItem({ url, title, metadata = {} }) {
   if (!isSafeArticleUrl(url)) throw new SafeError('This URL is invalid or contains credentials or authentication parameters. It was not saved.');
+  const fields = normalizeCaptureMetadata(metadata);
   const items = await getItems();
-  if (items.length >= 5000) throw new SafeError('The local collection has reached its 5000-item limit.');
   title = typeof title === 'string' ? title.slice(0, 1000) : '';
   const existing = items.find(item => item.url === url && !item.feishuDeleted);
-  if (existing) return existing;
+  if (existing) {
+    if (!Object.keys(fields).length) return existing;
+    const next = { ...existing, ...fields, metadataUpdate: { id: crypto.randomUUID(), fields: { ...existing.metadataUpdate?.fields, ...fields } } };
+    await setItems(items.map(item => item.id === existing.id ? next : item));
+    return next;
+  }
+  if (items.length >= 5000) throw new SafeError('The local collection has reached its 5000-item limit.');
   const item = { id: crypto.randomUUID(), url, title: title || url,
-    savedAt: new Date().toISOString(), read: false, status: '待阅读', notifiedAt: null };
+    savedAt: new Date().toISOString(), read: false, status: '待阅读', notifiedAt: null, ...fields,
+    ...(Object.keys(fields).length ? { metadataUpdate: { id: crypto.randomUUID(), fields } } : {}) };
   await setItems([item, ...items]);
   return item;
 }
@@ -50,19 +58,20 @@ export async function getSettings() {
   const data = await chrome.storage.local.get([SETTINGS_KEY, 'connectionEndpoint']);
   const { settings = {} } = data;
   const endpoint = storedEndpoint(data);
-  return { ...(endpoint ? { connectionUrl: endpoint } : {}), ...(settings.reminderTime !== undefined || settings.timeZone !== undefined ? validateSchedule(settings.reminderTime, settings.timeZone) : {}), ...(settings.provider ? { provider: settings.provider } : {}), language: settings.language === 'zh' ? 'zh' : 'en', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}), ...(typeof settings.remindersEnabled === 'boolean' ? { remindersEnabled: settings.remindersEnabled } : {}) };
+  return { ...(endpoint ? { connectionUrl: endpoint } : {}), ...(settings.reminderTime !== undefined || settings.timeZone !== undefined ? validateSchedule(settings.reminderTime, settings.timeZone) : {}), ...(settings.provider ? { provider: settings.provider } : {}), language: settings.language === 'en' ? 'en' : 'zh', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}), ...(typeof settings.remindersEnabled === 'boolean' ? { remindersEnabled: settings.remindersEnabled } : {}) };
 }
 export function validateSettings(settings) {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new SafeError('Invalid settings.');
+  if (settings.provider !== undefined && !['database', 'feishu'].includes(settings.provider)) throw new SafeError('Only Feishu Bitable is supported.');
   if (settings.connectionUrl !== undefined && typeof settings.connectionUrl !== 'string') throw new SafeError('Enter a valid HTTPS connection service address.');
-  return { ...(typeof settings.connectionUrl === 'string' ? { connectionUrl: endpointValue(settings.connectionUrl) } : {}), ...(settings.reminderTime !== undefined || settings.timeZone !== undefined ? validateSchedule(settings.reminderTime, settings.timeZone) : {}), ...(settings.provider ? { provider: settings.provider } : {}), language: settings.language === 'zh' ? 'zh' : 'en', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}), ...(typeof settings.remindersEnabled === 'boolean' ? { remindersEnabled: settings.remindersEnabled } : {}) };
+  return { ...(typeof settings.connectionUrl === 'string' ? { connectionUrl: endpointValue(settings.connectionUrl) } : {}), ...(settings.reminderTime !== undefined || settings.timeZone !== undefined ? validateSchedule(settings.reminderTime, settings.timeZone) : {}), ...(settings.provider ? { provider: settings.provider } : {}), language: settings.language === 'en' ? 'en' : 'zh', ...(settings.tableUrl ? { tableUrl: parseTableUrl(settings.tableUrl).url } : {}), ...(typeof settings.remindersEnabled === 'boolean' ? { remindersEnabled: settings.remindersEnabled } : {}) };
 }
 export async function setSettings(settings) {
   const next = validateSettings(settings);
-  const provider = settings.provider || 'feishu';
-  if (!['feishu', 'google'].includes(provider)) throw new SafeError('Invalid storage provider.');
+  const provider = settings.provider || 'database';
+  if (!['database', 'feishu'].includes(provider)) throw new SafeError('Invalid storage provider.');
   const current = await chrome.storage.local.get(['collectionIdentity', 'connectionProvider', 'connectionEndpoint', 'connectionBaseUrl']);
-  if (current.collectionIdentity && provider !== (current.connectionProvider || 'feishu')) throw new SafeError('Disconnect the current collection before switching providers.');
+  if (current.collectionIdentity && provider !== (current.connectionProvider || 'database')) throw new SafeError('Disconnect the current collection before switching providers.');
   const endpoint = next.connectionUrl !== undefined ? next.connectionUrl : storedEndpoint(current);
   const previous = storedEndpoint(current);
   if (current.collectionIdentity && endpoint !== previous) throw new SafeError('Disconnect the current collection before changing the connection address.');
@@ -91,8 +100,8 @@ export async function disconnectCollection() {
   const archives = data.collectionArchives || {};
   if (data.collectionIdentity && data.items?.length) archives[collectionArchiveKey(data.collectionIdentity, storedEndpoint(data) || data.connectionBaseUrl || '')] = data.items;
   // One atomic storage update prevents loss if Chrome quota is reached.
-  await chrome.storage.local.set({ collectionArchives: archives, items: data.collectionIdentity ? [] : data.items || [], settings: { language: 'en' }, collectionIdentity: null,
-    connectionEndpoint: '', connectionAccessKey: '', connectionKeySavedAt: null, connectionBaseUrl: '', connectionProvider: 'feishu', knowledgeSync: null });
+  await chrome.storage.local.set({ collectionArchives: archives, items: data.collectionIdentity ? [] : data.items || [], settings: { language: 'zh' }, collectionIdentity: null,
+    connectionEndpoint: '', connectionAccessKey: '', connectionKeySavedAt: null, connectionBaseUrl: '', connectionProvider: 'database', knowledgeSync: null });
   await releaseEndpointPermission(storedEndpoint(data));
   return { ok: true };
 }

@@ -3,18 +3,19 @@ import { readFile, mkdir, open, lstat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnvFile } from 'node:process';
-import { ARTICLE_FIELDS, createKnowledgeService } from '../src/lib/bitable.js';
+import { ARTICLE_FIELDS, createKnowledgeService } from '../connector/lib/bitable.js';
+import { CAPTURE_FIELDS } from '../src/lib/capture-metadata.js';
 import { SafeError, safeErrorMessage, readJsonResponse } from '../src/lib/security.js';
 import { DiagnosticError, cleanDiagnostic } from '../src/lib/diagnostics.js';
 
-export const tableFields = () => Object.entries(ARTICLE_FIELDS).map(([field_name, type]) => ({ field_name, type,
+export const tableFields = () => Object.entries({ ...ARTICLE_FIELDS, ...CAPTURE_FIELDS }).map(([field_name, type]) => ({ field_name, type,
   ...(field_name === '类别' ? { property: { options: [{ name: '待分类' }] } } : {}),
   ...(field_name === '阅读状态' ? { property: { options: ['待阅读', '阅读中', '已读', '跳过'].map(name => ({ name })) } } : {}),
 }));
 
-export async function createReadingTable({ config, getCredentials, fetchImpl = fetch, newBase = false, name = 'NewsBridge Reading', onProgress = async () => {} }) {
+export async function createReadingTable({ config, getCredentials, fetchImpl = fetch, newBase = false, name = 'ReadFlow Reading', onProgress = async () => {} }) {
   if (!config || typeof config !== 'object' || !config.connector || typeof getCredentials !== 'function' || typeof name !== 'string' || !name.trim() || name.length > 100) throw new SafeError('Provide a host config, current app credentials and a table name (1–100 characters).');
-  if ((config.connector.storageProvider || 'feishu') !== 'feishu') throw new SafeError('This creation script is for Feishu; use prepare for Google Sheets.');
+  if (config.connector.storageProvider !== 'database') throw new SafeError('Use a ReadFlow database host configuration.');
   const credentials = await getCredentials();
   const { appId, appSecret } = credentials || {};
   if (!/^cli_[A-Za-z0-9]+$/.test(appId || '') || typeof appSecret !== 'string' || !appSecret || /[\r\n]/.test(appSecret)) throw new DiagnosticError('AUTH_VERIFY', 'identity');
@@ -33,8 +34,8 @@ export async function createReadingTable({ config, getCredentials, fetchImpl = f
   token = auth.tenant_access_token;
   if (typeof token !== 'string' || !/^[A-Za-z0-9_-]+$/.test(token)) throw new DiagnosticError('AUTH_VERIFY', 'identity');
   const connectionId = `app:${appId}`;
-  if (config.connector.connectionId && config.connector.connectionId !== 'app:cli_YOUR_APP_ID' && config.connector.connectionId !== connectionId) throw new DiagnosticError('AUTH_VERIFY', 'identity');
-  let baseToken = config.connector.baseToken;
+  if (config.feishu?.appId && config.feishu.appId !== appId) throw new DiagnosticError('AUTH_VERIFY', 'identity');
+  let baseToken = config.feishu?.export?.baseToken;
   if (!newBase && !/^[A-Za-z0-9]{1,128}$/.test(baseToken || '')) throw new SafeError('Set a real baseToken, or explicitly pass --new-base to create a new Bitable.');
   await onProgress({ stage: 'authorized', connectionId, newBase, name });
   if (newBase) {
@@ -60,15 +61,16 @@ export async function createReadingTable({ config, getCredentials, fetchImpl = f
     return result;
   });
   const snapshot = await knowledge.sync({ config: connector, items: [] });
-  if (fieldMetadata.length !== 8) throw new SafeError('The new table did not return exactly eight fields. Inspect the progress journal.');
+  if (fieldMetadata.length !== 10 || !Object.keys(CAPTURE_FIELDS).every(name => fieldMetadata.some(field => field.field_name === name && field.type === CAPTURE_FIELDS[name]))) throw new SafeError('The new table did not return all ten fields. Inspect the progress journal.');
   if (snapshot.articles.length !== 0 || snapshot.created !== 0) throw new SafeError('The newly created table is not empty. Inspect the progress journal before proceeding.');
-  const hostConfig = { baseUrl: config.baseUrl, extensionId: config.extensionId || '', stateDir: `./state-${articleTableId}`, connector };
-  await onProgress({ stage: 'verified-empty', connectionId, baseToken, articleTableId, fields: 8, records: 0 });
-  return { config: hostConfig, emptyVerified: true, fields: 8, records: 0 };
+  const hostConfig = { ...config, feishu: { ...config.feishu, appId, export: { baseToken, articleTableId } } };
+  await onProgress({ stage: 'verified-empty', connectionId, baseToken, articleTableId, fields: 10, records: 0 });
+  return { config: hostConfig, emptyVerified: true, fields: 10, records: 0 };
 }
 
-const usage = 'Usage: node scripts/create-table.mjs private/host.json --output private/new-host.json [--env private/host.env] [--new-base] [--name "NewsBridge Reading"]';
+const usage = 'Usage: node scripts/create-table.mjs private/host.json --output private/new-host.json [--env private/host.env] [--new-base] [--name "ReadFlow Reading"]';
 export async function runCreateTable(args) {
+  if (args.length === 1 && args[0] === '--help') { console.log(usage); return; }
   const [file, ...rest] = args;
   let output, envFile, newBase = false, name;
   for (let i = 0; i < rest.length; i++) {
@@ -91,13 +93,13 @@ export async function runCreateTable(args) {
   try {
     target = await open(output, 'wx', 0o600);
     await write(target, { setupPending: true, progressFile: output + '.progress.json' });
-    await write(journal, { stage: 'initialized', name: name || 'NewsBridge Reading' });
+    await write(journal, { stage: 'initialized', name: name || 'ReadFlow Reading' });
     const result = await createReadingTable({ config, newBase, name, getCredentials: () => ({ appId: process.env.FEISHU_APP_ID, appSecret: process.env.FEISHU_APP_SECRET }), onProgress: value => write(journal, value) });
     await write(target, result.config);
-    console.log('Created eight fields and verified zero-record sync. New private config: ' + output);
+    console.log('Created ten fields (including tags/remark) and verified zero-record sync. New private config: ' + output);
     const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
-    console.log('Next: node examples/run.mjs init ' + quote(output));
-    console.log('Then: node examples/run.mjs check ' + quote(output) + (envFile ? ' --env ' + quote(envFile) : '') + ' --write');
+    console.log('Review the new export configuration; keep the existing database stateDir.');
+    console.log('Explicit export: node examples/run.mjs export ' + quote(output) + (envFile ? ' --env ' + quote(envFile) : ''));
   } finally { if (target) await target.close(); await journal.close(); }
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

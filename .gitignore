@@ -15,3 +15,8 @@ connection.config.json
 notification-state*
 .playwright-mcp/
 src/_preview_*.html
+
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm

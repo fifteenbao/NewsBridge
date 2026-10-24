@@ -1,56 +1,50 @@
 // Wire into an existing HTTPS router; importing this file never binds a port.
+import { validateHostConfig } from '../connector/host-config.js';
 import { DiagnosticError } from '../src/lib/diagnostics.js';
 import { resolve, dirname } from 'node:path';
-import { readFile, open } from 'node:fs/promises';
-import { constants } from 'node:fs';
-import { createGoogleAdapter } from './google-adapter.js';
+import { readFile } from 'node:fs/promises';
+import { createFeishuInbox } from './feishu-inbox.js';
 import { createPairing } from './pairing.js';
-import { createAdapter } from './adapter.js';
+import { openLibrary } from './database.js';
+import { createFeishuService } from './feishu-service.js';
+import { createDatabaseConnector } from '../connector/database-runtime.js';
 import { createFileState } from './file-state.js';
-import { createConnector } from '../connector/runtime.js';
 import { createHttpHandler } from '../connector/http.js';
 export async function loadHostConfig(file) {
   const config = JSON.parse(await readFile(file, 'utf8'));
   if (typeof config.stateDir !== 'string' || !config.stateDir) throw new Error('Set stateDir.');
   return { ...config, stateDir: resolve(dirname(resolve(file)), config.stateDir) };
 }
-export async function createHost(config, { getCredentials = () => ({ appId: process.env.FEISHU_APP_ID, appSecret: process.env.FEISHU_APP_SECRET }), onDiagnostic = diagnostic => console.error(JSON.stringify(diagnostic)) } = {}) {
+export async function createHost(config, { getCredentials = () => ({ appId: process.env.FEISHU_APP_ID, appSecret: process.env.FEISHU_APP_SECRET }), getEventCredentials = () => ({ encryptKey: process.env.FEISHU_EVENT_ENCRYPT_KEY, verificationToken: process.env.FEISHU_EVENT_VERIFICATION_TOKEN }), onDiagnostic = diagnostic => console.error(JSON.stringify(diagnostic)) } = {}) {
+  validateHostConfig(config);
   let persistence;
   // Fail before mounting when the explicit initialization step was missed.
   try { persistence = await createFileState({ ...config, authentication: 'paired' }); await persistence.store.load(); }
   catch { throw new DiagnosticError('STATE_LOAD', 'state.load'); }
-  const profiles = config.connections || { [config.connector.storageProvider || 'feishu']: config.connector };
-  const hosts = {};
-  for (const [provider, input] of Object.entries(profiles)) {
-    if (!['feishu', 'google'].includes(provider) || (input.storageProvider || 'feishu') !== provider) throw new DiagnosticError('AUTH_VERIFY', 'identity');
-    let adapter;
-    if (provider === 'google') {
-      const getGoogleCredentials = async () => {
-        const file = process.env.GOOGLE_SERVICE_ACCOUNT_FILE;
-        if (!file) throw new Error();
-        const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
-        try {
-          const info = await handle.stat();
-          if (!info.isFile() || info.nlink !== 1 || info.mode & 0o077 || typeof process.getuid === 'function' && info.uid !== process.getuid() || info.size > 65536) throw new Error();
-          return JSON.parse(await handle.readFile('utf8'));
-        } finally { await handle.close(); }
-      };
-      const messageAdapter = input.remindersEnabled ? createAdapter({ config: { ...input, storageProvider: 'feishu', connectionId: input.messageConnectionId }, getCredentials }) : undefined;
-      adapter = createGoogleAdapter({ config: input, getCredentials: getGoogleCredentials, messageAdapter });
-    } else adapter = createAdapter({ config: input, getCredentials });
-    hosts[provider] = { adapter, connector: createConnector({ config: input, adapter, ...persistence, onDiagnostic }), config: input };
-  }
-  const primary = hosts[config.connector.storageProvider || 'feishu'];
-  if (!primary) throw new DiagnosticError('AUTH_VERIFY', 'identity');
-  const { adapter, connector } = primary;
-  const router = { async dispatch(action, payload = {}) {
-    const provider = payload.provider || config.connector.storageProvider || 'feishu';
-    if (!Object.hasOwn(hosts, provider)) throw new DiagnosticError('TABLE_MISMATCH', 'fields');
-    const { provider: ignored, ...body } = payload;
-    return hosts[provider].connector.dispatch(action, body);
-  } };
-  const pairing = createPairing({ config, ...persistence });
-  const handleRequest = createHttpHandler({ baseUrl: config.baseUrl, extensionId: config.extensionId,
-    authenticate: pairing.authenticate, pairing, connector: router });
-  return { connector, hosts, handleRequest, pairing, adapter, store: persistence.store, exclusive: persistence.exclusive };
+  const library = await openLibrary(config.stateDir);
+  try {
+    const shared = { store: library.store, exclusive: persistence.exclusive };
+    const feishuConfig = { ...config.feishu, allowedChatIds: config.feishuInbox?.allowedChatIds || [] };
+    const feishu = createFeishuService({ config: feishuConfig, getCredentials });
+    const runtimeConfig = { ...config.connector, chatId: config.feishu?.chatId || '', interactive: config.feishuInbox?.enabled === true };
+    const connector = createDatabaseConnector({ library, config: runtimeConfig, feishu, ...shared });
+    const pairing = createPairing({ config, ...shared });
+    const handleRequest = createHttpHandler({ baseUrl: config.baseUrl, extensionId: config.extensionId,
+      authenticate: pairing.authenticate, pairing, connector });
+    const inbox = config.feishuInbox?.enabled ? createFeishuInbox({
+      config: { ...runtimeConfig, connectionId: `app:${config.feishu?.appId}`, baseToken: library.libraryId, articleTableId: 'library', storageProvider: 'feishu' },
+      inboxConfig: config.feishuInbox, ...shared,
+      capture: items => library.sync(items), applyAction: (...args) => library.applyAction(...args),
+      sendReceipt: async (chatId, uuid, count, created) => {
+        const result = await feishu.send(chatId, 'post', { zh_cn: { title: 'ReadFlow · 已收录 / Saved', content: [[{ tag: 'text', text: `${count} 个链接：${created} 条新收藏，其余已存在。Saved ${created} new item(s); other links already exist.` }]] } }, uuid);
+        if (!/^om_[A-Za-z0-9]+$/.test(result.data?.message_id || '')) throw new Error('Receipt delivery is unconfirmed.');
+      },
+      getEventCredentials, onDiagnostic,
+    }) : null;
+    const eventUrl = new URL('events/feishu', config.baseUrl.endsWith('/') ? config.baseUrl : config.baseUrl + '/').href;
+    const route = async request => request.url === eventUrl
+      ? inbox ? inbox.handleRequest(request) : new Response(null, { status: 404 })
+      : handleRequest(request);
+    return { connector, handleRequest: route, pairing, library, feishu, inbox, store: library.store, exclusive: persistence.exclusive, close: () => library.close() };
+  } catch (error) { library.close(); throw error; }
 }

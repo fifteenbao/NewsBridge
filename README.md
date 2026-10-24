@@ -1,149 +1,62 @@
-# NewsBridge
+# ReadFlow
 
-**NewsBridge is based on and modified from [zarazhangrui/reading-block-lark](https://github.com/zarazhangrui/reading-block-lark/tree/main). Credit remains with the original author and contributors. The original [MIT license](LICENSE) is retained.**
+**ReadFlow 在 [zarazhangrui/reading-block-lark](https://github.com/zarazhangrui/reading-block-lark/tree/main) 开源项目基础上修改。感谢原作者及贡献者，保留 [MIT 许可证](LICENSE)。**
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+收藏值得理解的文章和视频，再主动唤起阅读。Chrome 是收藏入口；ReadFlow 服务通过 SQLite 保存资料库；飞书可选，用于收链接和发送阅读邀请。**数据库是唯一主库。** AI Review 仍是产品方案，尚未实现。
 
-**Save content worth your time. Organize it in Feishu or Google Sheets.**
+## 各部分的职责
 
-NewsBridge is an open-source Chrome extension for saving articles, videos, and other content that takes time to understand. Use Feishu Bitable or Google Sheets to organize your collection, reading status, categories, and notes.
+| 部分 | 职责 |
+| --- | --- |
+| Chrome | 标题／链接、选填标签和备注、本机待同步队列、轻量未读列表和状态操作 |
+| ReadFlow 服务 | 数据库、身份校验、去重、同步、持久化发送记录和定时任务入口 |
+| 飞书机器人（可选） | 私聊链接收录、落库后的确认、每日阅读卡片 |
+| 飞书多维表格（可选） | 手动单向导出的目标，不是主库 |
+| 用户自己的 agent | 可选的配置助手，不是日常使用必须依赖的运行环境，也不是内置 AI 对话 |
 
-Save → organize → read or watch → take notes → review related material.
+## 安装 Chrome 插件
 
-## Install
+需要 Chrome 106 或以上版本。下载 Releases 中的安装包（如已发布），或本仓库 **Code → Download ZIP** 源码。解压到固定目录，打开 `chrome://extensions`，开启 **开发者模式**，点击 **加载已解压的扩展程序**，选择直接包含 `manifest.json`、`src/` 和 `icons/` 的文件夹。通过 Chrome 的扩展程序菜单固定 ReadFlow。
 
-Use **Google Chrome 106 or later**. NewsBridge is installed by loading an unpacked extension; you do not need to configure Feishu before trying local capture.
-
-### Connection settings
-
-Enter your **HTTPS connection service address** in Settings. No source edit or per-server build is needed. Check / Save requests optional access only to that host. The host still needs the actual Chrome extension ID.
-
-Choose **Feishu Bitable / Google Sheets**. The service must configure the chosen provider first; see [self-hosting (Feishu / Google)](docs/SELF-HOSTING.md). **Disconnect collection** archives the current linked library and clears the active local association so another account/table/provider can be associated. Reconnecting the same identity restores its archive. Remote data and server jobs remain; pause reminders before disconnecting if desired.
-
-Settings opens on first install, and is the default view until the connection is configured. Later, **right-click the NewsBridge icon → Settings**. Choose **English / 简体中文** for the interface; Save settings to apply the header language to reminders too.
-
-- **Browser pairing:** no access key to enter. Click Pair and check, have the server operator confirm the displayed fingerprint once, then check again and save. See [pairing](docs/PAIRING.md).
-- **Table link:** paste a Google Sheets link (Spreadsheet ID + optional gid), or a Feishu `/base/…` or `/wiki/…` share link. Direct links with `table=tbl…` fill both IDs immediately. Without `table=`, use the verified connection’s configured table in the same base; wiki links resolve through the connection during the check. **Check connection** verifies the target and fields; **Save settings** stores the connection and preferences.
-- **Reminder conversation ID:** returned by the connection service, cannot be derived from a table link, and is needed only for daily reminders. Table sync works without it.
-
-The connected build and host authorization are required for sync; offline builds save locally. A parsed link grants no access and cannot silently switch an existing collection to another table. See [startup order and runnable reference](SETUP.md#runnable-reference-and-startup-order--可运行参考与启动顺序).
-
-### Download the extension or source
-
-Choose one of these options:
-
-| Download | What to do | Folder to select in Chrome |
-| --- | --- | --- |
-| Extension package `newsbridge.zip`, if available in this repository's Releases → Assets | Download and unzip it | The extracted folder containing `manifest.json` |
-| Source ZIP from this repository's **Code → Download ZIP** | Download and unzip it; no build step is needed | The source root containing `manifest.json`, `src/`, and `icons/` |
-| A local source checkout | Load the source root directly, or build the smaller package below | The source root, or `dist/newsbridge/` after building |
-
-If no release package is available, use **Code → Download ZIP**. Download from this NewsBridge repository; the upstream project linked in the attribution is a different extension.
-
-### Load it in Chrome
-
-1. Move the extracted folder to a permanent location on your computer. Chrome continues to read its files, so keep the folder after installation.
-2. Enter `chrome://extensions` in Chrome's address bar.
-3. Enable **Developer mode** in the upper-right corner.
-4. Click **Load unpacked** and select the folder containing `manifest.json`. Select the folder, not the ZIP or the manifest file itself.
-5. Confirm that **NewsBridge** appears in the extension list and is enabled.
-6. Click Chrome's puzzle-piece **Extensions** button and pin **NewsBridge** to the toolbar.
-
-For the extension package, the selected directory should look like this:
-
-```text
-<selected folder>/
-├── manifest.json
-├── src/
-├── icons/
-└── LICENSE
-```
-
-### Try your first capture
-
-Open an ordinary HTTPS article or video, click the NewsBridge icon, then choose **Save this page**. A green ✓ confirms capture; a ! indicates an error. The menu also opens **Home / Collection / Settings**. Without a configured connection the default view opens Settings; the header offers navigation and language switching. Collection shows unread items only. Choose **Read** or **Skip** to clear an item from this list; skipping preserves the record and excludes daily reminders. Linked items can be restored by changing their Feishu state to 待阅读 and syncing. Chrome internal pages cannot be captured.
-
-The default package works locally with **no granted host permissions, connection key, or background service**. Feishu synchronization and daily reminders need a separate connection setup; follow [Setup](SETUP.md) or give your agent the [agent setup instructions](docs/AGENT-SETUP.md). Saving a video captures its page title and link, not its video file or transcript.
-
-### Build a package from source (optional)
-
-With Node.js 22+ and npm installed, open a terminal in the project root containing `package.json` and run:
+也可使用 Node.js 22.13+ 从源码打包：
 
 ```sh
 npm run build
 ```
 
-This creates the loadable directory `dist/newsbridge/`, archive `dist/newsbridge.zip`, and a versioned copy such as `dist/newsbridge-V0.3.0.zip`. No `npm install` is required. Node.js is needed only for packaging and development, not for daily extension use.
+生成 `dist/readflow/`、`dist/readflow.zip` 和 `dist/readflow-V0.4.1.zip`，无需安装 npm 依赖。更新时覆盖**原安装目录**，再在 Chrome 中重新加载。移动目录可能导致扩展 ID 改变，需要同步更新服务端白名单；卸载可能清除本地收藏。
 
-### Installation help
+## 第一次使用
 
-- **“Manifest file is missing or unreadable”:** check that you unzipped the download and selected the directory directly containing `manifest.json`, not its parent.
-- **The toolbar icon is missing:** open Chrome's Extensions menu and pin NewsBridge.
-- **Saved items do not appear in Feishu:** local installation does not enable synchronization automatically; complete the connection setup linked above.
-- **Updating the extension:** replace the files in the same installation folder, then click **Reload** on NewsBridge's card at `chrome://extensions`. Keep the same folder and Chrome profile; moving an unpacked folder may change its ID and require updating the host extensionId allowlist to prevent 403 ORIGIN_DENIED; removing the extension can erase its local collection.
+首次弹窗提供设置指引，也可明确选择 **先在本机收藏**。本机模式不等于数据库备份。已配置后，服务暂时离线也可收藏，内容保存在本机待同步队列；收藏时尝试同步，并明确显示是否获得数据库确认。
 
-## Connect Feishu / Google with your existing service
+设置页只需填写 **ReadFlow HTTPS 服务地址**，保留应用子路径。这不是飞书表格链接。点击 **配对并检查**，在服务端核对页面指纹后批准，再次检查并 **保存设置**。配置者须将设置页显示的 Chrome 扩展 ID 填入服务端白名单。Chrome 仅申请该主机的访问权限；扩展 ID 本身不是认证，后续请求需要签名。
 
-Table sync is optional. NewsBridge defines a connection contract; it does not require a particular command-line tool, cloud provider, server OS, or agent product.
+设置页提供可复制给自己 agent 的任务，同时把项目目录交给它。插件不会自动发消息。详见 [SETUP](SETUP.md) 和 [Agent 配置说明](SETUP.md#交给-agent-配置)。
 
-An agent can inspect your existing environment, implement the contract using an authorized table connection, and enter its HTTPS base URL in Settings, including an optional application path. A tool that can send chat messages is not necessarily able to read/write Bitable: these capabilities must be verified separately.
+## 收藏与阅读
 
-- [Self-hosting](docs/SELF-HOSTING.md): Feishu / Google credentials, HTTPS service, profile switching and custom reminders.
-- [Setup](SETUP.md): installation and environment checks.
-- [Connection contract](docs/CONNECTION.md): adapter operations, authentication and scheduling.
-- [Agent setup instructions](docs/AGENT-SETUP.md): what an agent may configure and how to verify it.
+打开 HTTP(S) 文章或视频，点击 ReadFlow，选填标签与备注后收藏。只保存标题和链接，不抓取正文、不下载视频、不转写。同步成功的记录存入数据库。未读列表提供已读／跳过；消息送达不代表已读，已关联条目的状态变更须成功写入服务后才确认。
 
-The current browser transport is an authenticated HTTPS interface. Existing tools must expose that interface, directly or through an adapter. The repository includes a connection module, a runnable Feishu custom-app adapter and a Google Sheets service-account adapter, not preconfigured integrations with third-party products. No new hosting is required when an existing environment can provide the interface.
+飞书私聊入口与 Chrome 共用数据库并按链接去重。处理任务落库后，机器人确认新增／已存在的数量；不抓链接正文，也不开始 AI 对话。[飞书配置](docs/FEISHU-INBOX.md)。
 
-## Reading table
+## 按需导出
 
-For Google, use the explicit prepare command in the [self-hosting guide](docs/SELF-HOSTING.md). For Feishu, use the optional [eight-field creation script](SETUP.md#create-the-eight-field-table--一键创建八字段表), or configure the table manually. Keep these exact field names; the English column explains them.
+设置 → **导出资料库**：
 
-| Feishu field | Meaning | Type |
-| --- | --- | --- |
-| 标题 | Title | Text, primary field |
-| 链接 | Link | URL; text URLs also work |
-| 内容 | Content | Text: summary and review questions |
-| 类别 | Category | Single or multiple select |
-| 阅读状态 | Reading status | Single select |
-| 推荐指数 | Recommendation | Number or rating, 1–5 |
-| 笔记 | Notes | Text: your observations |
-| 时间 | Date | Collection date |
+- **同步到飞书多维表格**：先将本机待同步收藏写入数据库，再把数据库快照导出到服务端配置的表格。按链接更新已有行、创建缺失行，保留其他行；十个受管理列按数据库值覆盖。表格修改不回写，请使用专用导出表。不会自动或定时导出到多维表格。
+- **下载 CSV**：同样先上传待同步收藏，再下载数据库中的全部记录，包含 UTF-8 编码和表格公式注入防护。服务错误会中止导出。无需飞书凭证；CSV 包含素材与笔记，但不是完整数据库备份。
 
-States: **待阅读** (to read), **阅读中** (reading), **已读** (read), **已沉淀** (consolidated), **归档** (archived). Only the first two count as unread. For videos, the same manually updated field represents viewing progress; playback is not tracked.
+服务端配置导出目标后，设置页自动显示表格链接；连接资料库不再需要填写表格链接。
 
-New captures save a title and link and start uncategorized. Existing notes, content and status belong to Feishu. Sync after capture, at browser startup, manually, and every 15 minutes while Chrome is running and sync is enabled. Changes in Feishu appear on the next sync. Linked read/unread changes are committed locally only after the remote write succeeds. Delete linked records in Feishu; they are not recreated by sync.
+## 可选阅读邀请
 
-## Optional daily reminders
+既有调度器调用 `daily`，设置页控制时间、时区和开关；页头语言同时用于提醒。调度和消息凭证保留在服务端，不自动安装调度任务。
 
-Your existing scheduler can poll the connection module every minute/few minutes. Settings controls daily time, timezone, language and enable/disable; the default is **10:00 Asia/Shanghai**. Enable reminders only after configuring a conversation and verifying message permissions, durable receipts, and shared locking.
+开启飞书回调后，阅读卡片提供 **打开原文／已读／稍后（24小时）／跳过**。操作直接更新数据库，Chrome 下次同步可见。“稍后”推迟 24 小时再参与提醒，不标已读。每张交互卡片最多五条，剩余未读可能生成多张卡片；未配置回调时发送文字摘要。关闭提醒不停止链接收录，取消 Chrome 关联也不会停止服务端任务。
 
-It rereads the connected table before sending, excludes read, skipped or deleted material, and sends up to 20 linked items per message. There is no five-item threshold. Sending does not mark content read. A completed day is not repeated; later captures wait until tomorrow, and still-unread items can recur the next day. A delayed check catches up only the current day after the configured time.
+## 部署与边界
 
-The Settings switch pauses/resumes reminders through a saved server preference once the host scheduler is configured. Chrome never sends scheduled reminders itself. Delivery requires the chosen scheduler and connection to remain available. Uncertain delivery pauses when its retry window expires or its content/status changes; check the conversation before resolving it in Settings.
+[自建指南](docs/SELF-HOSTING.md) · [架构](docs/ARCHITECTURE.md) · [接口约定](docs/CONNECTION.md) · [安全](SECURITY.md) · [MVP PRD](docs/MVP-PRD.md)
 
-## Daily Briefing template
-
-Ten starter items include source links, summaries, categories, and suggested ratings. Notes are blank and items start unread. These examples are not an automatically updated news feed. Dates are collection dates.
-
-- [Excel](templates/Daily-Briefing-飞书阅读模板.xlsx)
-- [CSV](templates/Daily-Briefing-飞书阅读模板.csv)
-- [Editable JSON](templates/daily-briefing.json)
-- [Field and view guide](KNOWLEDGE-SETUP.md)
-
-## Development and privacy
-
-```sh
-npm run doctor
-npm test
-npm run security
-npm run build
-```
-
-No npm runtime dependencies. The connection module takes an adapter, durable storage and a lock from the host environment; it starts no listener or scheduler. Public extension builds contain only the manifest, browser code, icons and license. Real addresses belong in Chrome-local settings and private host configuration; credentials never belong in public source or release packages.
-
-See [security boundaries](SECURITY.md), [architecture](docs/ARCHITECTURE.md), and [related projects](docs/RELATED-PROJECTS.md). Tests use mocked Feishu operations and do not prove compatibility with an untested third-party tool or deployment.
-
-## License
-
-MIT; see [LICENSE](LICENSE). Linked content retains its own copyright and license.
+参考服务使用单机私有 SQLite 文件，不限定云平台、CLI 或 agent。备份时停止服务并备份整个私有状态目录。统一删除、AI Review、多机数据库集群尚未实现。飞书测试使用模拟响应，真实部署仍需验证权限和回调。

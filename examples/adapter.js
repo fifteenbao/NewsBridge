@@ -1,9 +1,11 @@
 // Runnable reference for Feishu custom applications. No credentials at import time.
 // Other environments may implement the same contract without using this adapter.
 import { validateConnectorConfig } from '../connector/config.js';
-import { validateFeishuOperation } from '../src/lib/api-policy.js';
+import { validateFeishuOperation } from '../connector/lib/api-policy.js';
 import { DiagnosticError } from '../src/lib/diagnostics.js';
 import { readJsonResponse } from '../src/lib/security.js';
+import { CAPTURE_FIELDS } from '../src/lib/capture-metadata.js';
+import { inspectArticleFields, inspectCaptureFields } from '../connector/lib/bitable.js';
 
 export function createAdapter({ config: input, getCredentials, fetchImpl = fetch }) {
   const config = validateConnectorConfig(input);
@@ -32,6 +34,36 @@ export function createAdapter({ config: input, getCredentials, fetchImpl = fetch
   return {
     capabilities: { tableRead: true, tableWrite: true, messages: true },
     async getIdentity() { return { connectionId: (await authorize()).connectionId }; },
+    // Explicit operator-only schema setup; never exposed by the browser router.
+    async ensureCaptureFields() {
+      const { token } = await authorize();
+      const path = `https://open.feishu.cn/open-apis/bitable/v1/apps/${config.baseToken}/tables/${config.articleTableId}/fields`;
+      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      async function listFields() {
+        const fields = [], seen = new Set(); let pageToken;
+        do {
+          const url = new URL(path); url.searchParams.set('page_size', '100');
+          if (pageToken) url.searchParams.set('page_token', pageToken);
+          const result = await json(url, { method: 'GET', headers }, 'fields');
+          if (!Array.isArray(result.data?.items) || fields.length + result.data.items.length > 10000) throw new DiagnosticError('API_RESPONSE', 'fields');
+          fields.push(...result.data.items);
+          if (!result.data.has_more) return fields;
+          pageToken = result.data.page_token;
+          if (typeof pageToken !== 'string' || !pageToken || seen.has(pageToken) || seen.size >= 100) throw new DiagnosticError('API_RESPONSE', 'fields');
+          seen.add(pageToken);
+        } while (true);
+      }
+      const fields = await listFields();
+      inspectArticleFields(fields); inspectCaptureFields(fields); // Type conflicts stop before any schema write.
+      let created = 0;
+      for (const [field_name, type] of Object.entries(CAPTURE_FIELDS)) {
+        if (fields.some(field => field.field_name === field_name)) continue;
+        await json(path, { method: 'POST', headers, body: JSON.stringify({ field_name, type }) }, 'fields');
+        created++;
+      }
+      inspectCaptureFields(await listFields(), Object.keys(CAPTURE_FIELDS));
+      return { ok: true, created, fields: CAPTURE_FIELDS };
+    },
     async resolveWikiNode(nodeToken) {
       if (!/^[A-Za-z0-9]{1,128}$/.test(nodeToken || '')) throw new DiagnosticError('LINK_RESPONSE_INVALID', 'wiki.resolve');
       const { token } = await authorize();
@@ -44,7 +76,7 @@ export function createAdapter({ config: input, getCredentials, fetchImpl = fetch
     async probeRecord(fields, created, inspect, cleaned) {
       const path = `/open-apis/bitable/v1/apps/${config.baseToken}/tables/${config.articleTableId}/records`;
       validateFeishuOperation(config, 'POST', path, { data: { fields } });
-      if (!/^NewsBridge self-test [a-f0-9-]{36}$/.test(fields.标题 || '') || fields.阅读状态 !== '已读') throw new DiagnosticError('PROBE_FAILED', 'records.create');
+      if (!/^ReadFlow self-test [a-f0-9-]{36}$/.test(fields.标题 || '') || fields.阅读状态 !== '已读') throw new DiagnosticError('PROBE_FAILED', 'records.create');
       const { token } = await authorize();
       const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
       const result = await json('https://open.feishu.cn' + path, { method: 'POST', headers, body: JSON.stringify({ fields }) }, 'records.create');

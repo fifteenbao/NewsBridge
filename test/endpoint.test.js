@@ -5,7 +5,7 @@ import { area } from '../test-support/chrome-mock.js';
 import { createConnectionClient } from '../src/lib/connection.js';
 import { endpointValue, endpointPermission, requestEndpointPermission, collectionArchiveKey } from '../src/lib/endpoint.js';
 import { setSettings, getSettings, getConnectionKeyStatus, disconnectCollection } from '../src/lib/storage.js';
-const address = 'https://connection.example.com/newsbridge/', other = 'https://other.example.com/library/';
+const address = 'https://connection.example.com/readflow/', other = 'https://other.example.com/library/';
 const key = 't'.repeat(43), identity = { connectionId: 'app:cli_Test', base: 'baseTest/tblTest' };
 const healthy = () => new Response(JSON.stringify({ ok: true, connected: true, identity, protocolVersion: 1, capabilities: { tableRead: true, tableWrite: true }, configuration: { storageProvider: 'feishu' } }));
 test('runtime addresses stay offline until configured, normalize paths and require exact host permission', async () => {
@@ -18,7 +18,7 @@ test('runtime addresses stay offline until configured, normalize paths and requi
   await approved('health'); assert.equal(calls[0].url, address + 'v1/health'); assert.equal(calls[0].opts.credentials, 'omit'); assert.equal(calls[0].opts.redirect, 'error');
   data.connectionEndpoint = other;
   await assert.rejects(approved('health'), /Disconnect/); assert.equal(calls.length, 1);
-  assert.equal(endpointValue('  https://connection.example.com/newsbridge  '), address);
+  assert.equal(endpointValue('  https://connection.example.com/readflow  '), address);
   for (const value of ['https://user:secret@example.com/', 'https://localhost/', 'http://example.com/', 'http://localhost:8787/', 'https://example.com/path?token=secret', 'https://example.com/../', 'https://*.example.com/']) assert.throws(() => endpointValue(value));
 });
 test('settings atomically persist address/key/identity, isolate archives by endpoint and revoke saved permission on disconnect', async t => {
@@ -44,7 +44,7 @@ test('settings atomically persist address/key/identity, isolate archives by endp
   assert.equal(values.collectionArchives[collectionArchiveKey(identity, address)][0].id, 'first'); assert.ok(removed.includes(endpointPermission(address).origins[0]));
   await seedApprovedBrowser(storage, other);
   await setSettings({ language: 'en', connectionUrl: other });
-  assert.deepEqual(values.items, []); assert.equal(requests.at(-1).options.headers.Authorization, undefined); assert.ok(requests.at(-1).options.headers['X-NewsBridge-Signature']);
+  assert.deepEqual(values.items, []); assert.equal(requests.at(-1).options.headers.Authorization, undefined); assert.ok(requests.at(-1).options.headers['X-ReadFlow-Signature']);
   await disconnectCollection(); await requestEndpointPermission(address);
   await seedApprovedBrowser(storage, address);
   await setSettings({ language: 'en', connectionUrl: address }); assert.equal(values.items[0].id, 'first');

@@ -1,16 +1,22 @@
 {
-  "baseUrl": "https://connection.example.com/newsbridge/",
+  "baseUrl": "https://connection.example.com/readflow/",
   "extensionId": "",
   "stateDir": "./state",
   "connector": {
-    "connectionId": "app:cli_YOUR_APP_ID",
-    "baseToken": "YOUR_BITABLE_BASE_TOKEN",
-    "articleTableId": "tblYOUR_TABLE_ID",
-    "chatId": "",
+    "storageProvider": "database",
     "remindersEnabled": false,
     "timeZone": "Asia/Shanghai",
-    "language": "en",
-    "storageProvider": "feishu",
+    "language": "zh",
     "reminderTime": "10:00"
+  },
+  "feishu": {
+    "appId": "",
+    "chatId": "",
+    "export": null
+  },
+  "feishuInbox": {
+    "enabled": false,
+    "allowedChatIds": [],
+    "allowedOpenIds": []
   }
 }

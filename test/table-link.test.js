@@ -18,7 +18,7 @@ test('normal share links parse without table= and strip copy/view parameters', (
   assert.equal(wiki.kind, 'wiki'); assert.equal(wiki.nodeToken, 'wikiTest'); assert.equal(wiki.baseToken, null);
   assert.equal(wiki.url, 'https://my.feishu.cn/wiki/wikiTest');
   assert.equal(parseTableUrl(wikiLink + '&table=tblTest').articleTableId, 'tblTest');
-  for (const url of ['https://my.feishu.cn/base/baseTest?table=', 'https://my.feishu.cn/wiki/wikiTest?table=bad', 'https://my.feishu.cn/wiki/wikiTest?table=tblTest&table=tblOther', 'https://my.feishu.cn/docx/docTest', 'https://my.feishu.cn/wiki/wikiTest/more']) assert.throws(() => parseTableUrl(url));
+  for (const url of ['https://my.feishu.cn/base/baseTest?table=', 'https://my.feishu.cn/wiki/wikiTest?table=bad', 'https://my.feishu.cn/wiki/wikiTest?table=tblTest&table=tblOther', 'https://docs.google.com/spreadsheets/d/example/edit#gid=0', 'https://my.feishu.cn/docx/docTest', 'https://my.feishu.cn/wiki/wikiTest/more']) assert.throws(() => parseTableUrl(url));
 });
 test('base-only share link selects the configured table only within its matching base', async () => {
   const f = fixture(), health = await f.runtime.dispatch('health', { tableUrl: baseLink });
@@ -55,11 +55,11 @@ test('missing resolver and wiki access errors provide specific safe diagnostics'
 });
 test('authenticated browser round trip resolves share links and rejects inconsistent resolver responses', async () => {
   const f = fixture(), runtime = f.create({ adapter: { ...f.adapter, resolveWikiNode: async token => ({ nodeToken: token, objType: 'bitable', objToken: 'baseTest' }) } });
-  const baseUrl = 'https://connection.example.com/newsbridge/', local = { connectionAccessKey: 't'.repeat(43) };
+  const baseUrl = 'https://connection.example.com/readflow/', local = { connectionAccessKey: 't'.repeat(43) };
   const handle = createHttpHandler({ baseUrl, connector: runtime, authenticate: async () => true });
   const call = createConnectionClient({ authentication: 'bearer', baseUrl, storage: area(local), fetchImpl: (url, options) => handle(new Request(url, options)) });
   for (const tableUrl of [baseLink, wikiLink]) assert.equal((await call('health', { tableUrl })).resolvedTable.base, 'baseTest/tblTest');
-  const bad = createConnectionClient({ authentication: 'bearer', baseUrl, storage: area(local), fetchImpl: async () => Response.json({ ok: true, protocolVersion: 1, identity: { connectionId: 'test-user', base: 'baseTest/tblTest' }, connected: true, capabilities: { tableRead: true, tableWrite: true }, resolvedTable: { url: parseTableUrl(wikiLink).url, base: 'baseOther/tblOther', baseToken: 'baseOther', articleTableId: 'tblOther', source: 'wiki-node' } }) });
+  const bad = createConnectionClient({ authentication: 'bearer', baseUrl, storage: area(local), fetchImpl: async () => Response.json({ ok: true, protocolVersion: 1, identity: { connectionId: 'test-user', base: 'baseTest/tblTest' }, connected: true, configuration: { storageProvider: 'feishu' }, capabilities: { tableRead: true, tableWrite: true }, resolvedTable: { url: parseTableUrl(wikiLink).url, base: 'baseOther/tblOther', baseToken: 'baseOther', articleTableId: 'tblOther', source: 'wiki-node' } }) });
   await assert.rejects(bad('health', { tableUrl: wikiLink }), /LINK_RESPONSE_INVALID/);
 });
 test('reference adapter uses the fixed read-only get_node endpoint and current app authorization', async () => {

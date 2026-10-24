@@ -10,7 +10,7 @@ export async function buildExtension({ baseUrl = '', outputRoot = new URL('../di
   baseUrl = target?.baseUrl || '';
   const root = fileURLToPath(new URL('../', import.meta.url));
   const outRoot = outputRoot instanceof URL ? fileURLToPath(outputRoot) : resolve(outputRoot);
-  const name = origin ? 'newsbridge-connected' : 'newsbridge';
+  const name = origin ? 'readflow-connected' : 'readflow';
   const output = join(outRoot, name), entries = [];
   async function add(name) {
     const path = join(root, name), info = await lstat(path);
@@ -20,6 +20,8 @@ export async function buildExtension({ baseUrl = '', outputRoot = new URL('../di
   }
   for (const name of ['manifest.json', 'src', 'icons', 'LICENSE']) await add(name);
   const manifest = JSON.parse(entries.find(e => e.name === 'manifest.json').data);
+  const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+  if (pkg.name !== 'readflow' || pkg.version !== manifest.version || manifest.name !== 'ReadFlow') throw new Error('Package name/version and manifest must match before packaging.');
   if (origin) { manifest.host_permissions = [origin + '/*']; delete manifest.optional_host_permissions; } else delete manifest.host_permissions;
   manifest.content_security_policy.extension_pages = manifest.content_security_policy.extension_pages.replace(/connect-src [^;]+;/, `connect-src ${origin || 'https:'};`);
   entries.find(e => e.name === 'manifest.json').data = Buffer.from(JSON.stringify(manifest, null, 2) + '\n');
@@ -70,7 +72,7 @@ function zip(entries) {
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
-  if (args.length && (args.length !== 2 || !['--base-url', '--config'].includes(args[0]))) throw new Error('Usage: npm run build -- [--base-url https://connection.example.com/newsbridge/ | --config /private/endpoint.json]');
+  if (args.length && (args.length !== 2 || !['--base-url', '--config'].includes(args[0]))) throw new Error('Usage: npm run build -- [--base-url https://connection.example.com/readflow/ | --config /private/endpoint.json]');
   let baseUrl = args[1] || '';
   if (args[0] === '--config') {
     try {

@@ -11,8 +11,8 @@ export function createHttpHandler({ baseUrl, extensionId, authenticate, connecto
     throw new SafeError('Configure an HTTPS base URL, extension ID and authentication verifier.');
   }
   const expectedOrigin = extensionId ? `chrome-extension://${extensionId}` : null;
-  const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences', ...(pairing ? ['pair'] : [])]);
-  const allowedHeaders = pairing ? ['content-type', 'x-newsbridge-pair', 'x-newsbridge-time', 'x-newsbridge-nonce', 'x-newsbridge-signature'] : ['authorization', 'content-type'];
+  const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences', 'export', 'csv', ...(pairing ? ['pair'] : [])]);
+  const allowedHeaders = pairing ? ['content-type', 'x-readflow-pair', 'x-readflow-time', 'x-readflow-nonce', 'x-readflow-signature'] : ['authorization', 'content-type'];
   let active = 0;
   return async request => {
     const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
@@ -52,7 +52,7 @@ export function createHttpHandler({ baseUrl, extensionId, authenticate, connecto
         try { if (await authenticate(request) !== true) return send(401, { ok: false, error: 'Access denied.' }); }
         catch { return send(401, { ok: false, error: 'Access denied.' }); }
       } else {
-        if (!request.headers.has('X-NewsBridge-Signature')) return send(401, { ok: false, diagnostic: { code: 'PAIR_REQUIRED', stage: 'identity' } });
+        if (!request.headers.has('X-ReadFlow-Signature')) return send(401, { ok: false, diagnostic: { code: 'PAIR_REQUIRED', stage: 'identity' } });
         const body = await readJsonResponse(request.clone(), maxBytes);
         try { if (await authenticate(request) !== true) return send(401, { ok: false, diagnostic: { code: 'PAIR_REQUIRED', stage: 'identity' } }); }
         catch { return send(401, { ok: false, diagnostic: { code: 'PAIR_REQUIRED', stage: 'identity' } }); }

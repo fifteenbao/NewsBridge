@@ -1,7 +1,7 @@
 {
-  "name": "newsbridge",
-  "version": "0.3.0",
-  "description": "Open-source Chrome extension to save articles and videos, and manage reading status and notes in Feishu Bitable or Google Sheets.",
+  "name": "readflow",
+  "version": "0.4.1",
+  "description": "收藏文章与视频到 ReadFlow 资料库，可选飞书阅读提醒、手动表格同步与 CSV 导出。",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,6 +11,6 @@
     "doctor": "node scripts/doctor.mjs"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   }
 }

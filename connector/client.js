@@ -1,6 +1,6 @@
 import { DiagnosticError, cleanDiagnostic } from '../src/lib/diagnostics.js';
 import { SafeError } from '../src/lib/security.js';
-import { validateFeishuOperation } from '../src/lib/api-policy.js';
+import { validateFeishuOperation } from './lib/api-policy.js';
 
 export function createAdapterClient(config, adapter) {
   if (typeof adapter?.getIdentity !== 'function' || typeof adapter?.request !== 'function' ||

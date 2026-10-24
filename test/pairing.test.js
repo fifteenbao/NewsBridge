@@ -6,10 +6,10 @@ import { fixture } from '../test-support/connector-fixture.js';
 import { area } from '../test-support/chrome-mock.js';
 import { requestPairing, signConnectionRequest, getPairingStatus } from '../src/lib/pairing-client.js';
 import { createConnectionClient } from '../src/lib/connection.js';
-const baseUrl = 'https://connection.example.com/newsbridge/', extensionId = 'a'.repeat(32);
+const baseUrl = 'https://connection.example.com/readflow/', extensionId = 'a'.repeat(32);
 function setup(t) {
   const original = { chrome: globalThis.chrome, fetch: globalThis.fetch }; t.after(() => Object.assign(globalThis, original));
-  const f = fixture(), data = { connectionEndpoint: baseUrl }, storage = area(data);
+  const f = fixture(), data = { connectionEndpoint: baseUrl, connectionProvider: 'feishu' }, storage = area(data);
   let time = Date.now();
   const pairing = createPairing({ config: { baseUrl, extensionId }, store: f.store, exclusive: f.exclusive, now: () => time });
   const handler = createHttpHandler({ baseUrl, extensionId, connector: f.runtime, pairing, authenticate: pairing.authenticate });

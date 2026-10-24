@@ -4,7 +4,6 @@ export const messages = Object.freeze({
   LINK_RESOLVER_UNAVAILABLE: 'The connection adapter cannot resolve wiki links. Add its read-only wiki resolver or use a direct /base/ link.',
   LINK_NOT_BITABLE: 'This wiki node is not a Bitable. Paste a link to a Bitable node.',
   LINK_RESPONSE_INVALID: 'The table-link resolver returned an invalid or mismatched result.',
-  SHEET_ROWS_UNPREPARED: 'Google rows lack stable metadata. Ask the operator to run prepare for this sheet before syncing.',
   EMPTY_RESPONSE: 'The provider omitted required list metadata.',
   REMINDERS_UNAVAILABLE: 'The connection operator must configure the reminder scheduler, chat and message permissions first.',
   KEY_INVALID: 'The connection access key is missing, invalid or revoked (401).',
@@ -24,7 +23,7 @@ export const messages = Object.freeze({
   OPERATION_FAILED: 'Connection operation failed. Check the failure stage and reference.',
 });
 const stages = new Set(['setup.app.create', 'setup.table.create', 'identity', 'wiki.resolve', 'fields', 'records.list', 'records.create', 'records.update', 'messages.send', 'state.load', 'state.save', 'lock', 'health', 'sync', 'read', 'pending', 'resolve', 'preferences', 'daily']);
-const fieldNames = new Set(['标题', '链接', '内容', '类别', '阅读状态', '推荐指数', '笔记', '时间']);
+const fieldNames = new Set(['标题', '链接', '内容', '类别', '阅读状态', '推荐指数', '笔记', '时间', '标签', '备注']);
 export function cleanDiagnostic(value) {
   if (!value || !Object.hasOwn(messages, value.code) || typeof value.stage !== 'string') return null;
   const stage = value.stage.replace(/^(health|sync|read|pending|resolve|preferences|daily)\./, '');
@@ -33,7 +32,7 @@ export function cleanDiagnostic(value) {
   if (Number.isSafeInteger(value.providerCode)) result.providerCode = value.providerCode;
   if (Number.isInteger(value.httpStatus) && value.httpStatus >= 100 && value.httpStatus <= 599) result.httpStatus = value.httpStatus;
   if (typeof value.reference === 'string' && /^[a-f0-9-]{36}$/.test(value.reference)) result.reference = value.reference;
-  if (Array.isArray(value.fields)) result.fields = value.fields.slice(0, 8).filter(f => fieldNames.has(f?.name) && Array.isArray(f.expected) && f.expected.every(Number.isSafeInteger) && (f.actual === null || Number.isSafeInteger(f.actual))).map(f => ({ name: f.name, expected: f.expected.slice(0, 2), actual: f.actual }));
+  if (Array.isArray(value.fields)) result.fields = value.fields.slice(0, 10).filter(f => fieldNames.has(f?.name) && Array.isArray(f.expected) && f.expected.every(Number.isSafeInteger) && (f.actual === null || Number.isSafeInteger(f.actual))).map(f => ({ name: f.name, expected: f.expected.slice(0, 2), actual: f.actual }));
   return result;
 }
 export class DiagnosticError extends SafeError {

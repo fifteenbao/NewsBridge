@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isSafeArticleUrl, safeErrorMessage, readJsonResponse } from '../src/lib/security.js';
-import { validateFeishuOperation } from '../src/lib/api-policy.js';
-import { normalizeArticle, textOf, createKnowledgeService } from '../src/lib/bitable.js';
-import { buildReadingMessage } from '../src/lib/messages.js';
-import { createReadingService } from '../src/lib/notifications.js';
+import { validateFeishuOperation } from '../connector/lib/api-policy.js';
+import { normalizeArticle, textOf, createKnowledgeService } from '../connector/lib/bitable.js';
+import { buildReadingMessage } from '../connector/lib/messages.js';
+import { createReadingService } from '../connector/lib/notifications.js';
 
 test('credential URLs, OAuth callbacks, unsafe schemes, and control characters never enter messages', () => {
   const bad = ['javascript:alert(1)', 'data:text/html,test', 'https://user:secret@example.com/path',

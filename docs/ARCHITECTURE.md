@@ -1,54 +1,38 @@
-# Architecture / 架构
+# 架构
 
-NewsBridge has three boundaries: browser collection, a portable connection contract, and the user's existing authenticated Feishu / Google environment.
+**服务端 SQLite 是唯一主库。**
 
-NewsBridge 分为浏览器收藏、可移植连接接口，以及用户已有的飞书 / Google 授权环境。
-
-```text
-Chrome: capture + local list + status controls
-    │ authenticated HTTPS, exact operator-selected origin
-    ▼
-Existing tool/router → connector.dispatch(action, payload)
-    │ verified adapter identity + fixed table/field restrictions
-    ▼
-Existing provider access → Feishu Bitable / Google Sheets
-Optional Feishu messaging → configured chat
-
-Existing scheduler → connector.daily()
-Both dispatch and daily share durable state and an exclusive lock.
+```mermaid
+flowchart LR
+  Chrome[Chrome 收藏与待同步队列] -->|签名同步| Service[ReadFlow 服务]
+  Chat[飞书私聊] -->|验证加密回调| Service
+  Service <--> DB[(SQLite 资料库与运行状态)]
+  Scheduler[既有调度器] -->|ingest / daily| Service
+  Service -->|收录确认与阅读邀请| Chat
+  Service -->|用户手动导出| Table[飞书多维表格副本]
+  Service -->|用户手动下载| CSV[CSV 快照]
 ```
 
-No provider, executable, service manager, OS path or personal domain is required by the core. The public extension starts without an endpoint; Settings saves a user-supplied HTTPS base URL and requests its optional host permission. A private build may optionally prefill a fixed endpoint. Client and handler retain the path prefix. Core source remains unchanged.
+Chrome 先保存标题、链接、标签和备注，再尝试同步。首次可明确选择本机模式；服务临时离线时保留待同步队列。本机缓存不是第二主库或完整备份。已关联记录的状态修改须得到服务确认。
 
-核心不依赖指定工具、服务管理器、系统路径或私人域名。公开包默认未配置连接，由设置页保存可带子路径的 baseUrl，并按用户点击申请具体主机可选权限；也可选用预填的私人固定地址包，请求与处理器保留路径前缀，不修改公开源码。
+`examples/database.js` 管理记录、编辑与卡片操作 ID、运行状态。URL 唯一约束防止重复收藏，事务保证批次原子性，编辑 UUID 防止旧请求覆盖新修改。资料库身份不依赖飞书账号或导出表。
 
-- `src/`: browser capture, local cache, status controls and connection client.
-- `connector/`: verified adapter calls, portable dispatch, optional Fetch handler and daily reminder entry point; no listener or scheduler is started.
-- `src/lib/bitable.js`: field validation, pagination, safe record creation and normalized snapshots.
-- `src/lib/notifications.js`: unread selection, persistent pending requests and receipts, same-day completion.
-- `scripts/build-extension.mjs`: allowlisted extension assets and ZIP generation, with no OS packaging utility.
-- `examples/adapter.js`: runnable Feishu custom-app adapter.
-- `examples/google-adapter.js`: Sheets API compatibility adapter, service-account OAuth, eight-column schema and metadata-based row identity.
-- `examples/host.js`: fixed profile routing and shared persistence.
-- `examples/serve.mjs`: optional, explicitly started loopback listener behind an existing HTTPS proxy.
+`connector/database-runtime.js` 提供数据库操作与调度入口。`examples/host.js` 组装数据库、跨进程锁、配对和可选飞书能力。`examples/feishu-service.js` 负责当前服务的表格导出和发消息。收藏、健康检查、状态和 CSV 不调用飞书。
 
-The selected table owns existing notes and status. The browser uploads captures, not arbitrary API commands. A local linked status changes only after a successful remote update. Identity includes the verified connection and table, so switching either cannot silently transfer a collection.
+`examples/feishu-inbox.js` 校验加密、签名、Token、应用及会话／用户白名单。事件持久化入队后确认接收，由任务实际落库并发送收录结果。卡片操作还需匹配已发送消息、请求和记录绑定。
 
-所选表格保有已有记录的笔记和状态。浏览器上传收藏而非任意 API 指令；关联状态在远端写入成功后更新。身份同时限定连接和表格，避免静默转移资料库。
+既有调度器运行 `ingest` 和 `daily`；daily 先处理收录队列。发送 UUID 在发送前持久化，不确定结果仅在去重窗口内重试，超时需人工核对。送达不代表已读。
 
-## Delivery recovery
+飞书表格只做手动单向导出：预检十个字段，按链接新增／更新，覆盖受管理列、保留其他行，不反向导入。CSV 导出全部记录并防范公式注入。插件两种导出操作都会先上传待同步收藏，失败则停止导出。
 
-The host supplies private durable storage and locking. A scheduled send first persists its UUID, content, record IDs and links. Confirmed delivery writes receipts separately from reading status. A lost response leaves the exact request pending. After its retry window or a content/status change, verify the chat before resolving **Delivered** or **Not delivered** in Settings. Never erase the journal to force a resend.
+## 代码边界
 
-宿主提供私有持久化存储和锁。先保存请求再发送，送达记录与阅读状态分开。不确定结果保留原请求；超过窗口或内容/状态改变后先核实会话，再确认结果，不清空记录强制重发。
+- `src/`：Chrome 页面、后台与浏览器所需共享校验。安装包仅包含此目录、清单、图标和许可证。
+- `connector/`：连接协议、运行时；`connector/lib/` 存放服务端字段、消息、导出工具，不进入 Chrome 安装包。
+- `examples/`：可运行的 SQLite 参考服务、飞书集成与操作入口。
+- `scripts/`：打包、环境检查、安全检查和可选建表。
+- `test/`：本地及模拟接口测试。底层表格适配器仍有参考与测试用途，不作为当前服务主库。
 
-See [the contract](CONNECTION.md) for request/response details and [security boundaries](../SECURITY.md) for host responsibilities.
+参考实现面向单机 POSIX，无 npm 运行依赖。备份需停服务并复制完整私有状态目录。尚未实现多机集群、统一删除、正文抓取、视频转写和 AI Review。
 
-
-Settings can disconnect and re-associate with a configured provider. Local linked data is archived by verified identity and restored only for that identity; no remote deletes or server authorization changes occur. The Google adapter translates the current restricted Feishu-shaped internal operations rather than making the entire data core storage-agnostic. General provider support still requires an adapter implementing the documented normalization and security restrictions.
-
-设置页可取消关联并重新连接已配置类型，本机关联数据按验证身份归档与恢复，不删除远端内容或改变服务端授权。Google 适配器翻译现有受限的内部飞书形态操作；数据核心尚未变成通用任意存储接口，其他平台仍须实现规定的归一化与权限限制。
-
-Daily jobs poll using persisted custom time/timezone, language and enable/disable preferences (10:00 Asia/Shanghai default). Both providers can use optional Feishu chat delivery with a separately verified messaging app. See [self-hosting](SELF-HOSTING.md) / [中文自建部署](SELF-HOSTING.zh-CN.md).
-
-每日任务按持久化的自定义时间、时区、语言与开关轮询，默认 10:00 Asia/Shanghai。两种表格均可通过另行验证的飞书应用发送可选会话提醒。
+[配置](../SETUP.md) · [接口](CONNECTION.md) · [安全](../SECURITY.md)

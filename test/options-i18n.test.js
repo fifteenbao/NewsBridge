@@ -17,14 +17,16 @@ test('both interface languages cover the real page and preserve interpolation va
   assert.equal(html.includes('Feishu Bitable link / 多维表格链接'), false);
   assert.ok(html.indexOf('id="chatId"') > html.indexOf('id="remindersEnabled"'));
   assert.ok(html.indexOf('id="chatId"') > html.indexOf('id="sync"'));
+  assert.doesNotMatch(html, /id="tableUrl"/);
+  assert.match(html, /id="export-csv"/);
   assert.match(html, /id="pair-status"/);
   assert.doesNotMatch(html, /id="(?:connectionAccessKey|baseToken|articleTableId|language)"/);
 
 });
-test('interface choice respects a saved preference and supports Chinese browser locales', () => {
+test('interface defaults to Chinese and respects an explicit saved language', () => {
   assert.equal(chooseLanguage(undefined, 'zh-CN'), 'zh');
   assert.equal(chooseLanguage(undefined, 'zh-TW'), 'zh');
-  assert.equal(chooseLanguage(undefined, 'de-DE'), 'en');
+  assert.equal(chooseLanguage(undefined, 'de-DE'), 'zh');
   assert.equal(chooseLanguage('en', 'zh-CN'), 'en');
   assert.equal(chooseLanguage('zh', 'en-US'), 'zh');
 });

@@ -1,5 +1,5 @@
 import { SafeError } from '../src/lib/security.js';
-import { validateConfig } from '../src/lib/bitable.js';
+import { validateConfig } from './lib/bitable.js';
 
 export function validateConnectorConfig(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new SafeError('Configure the connection.');
@@ -9,7 +9,7 @@ export function validateConnectorConfig(input) {
       typeof input.remindersEnabled !== 'boolean' ||
       input.remindersEnabled && !input.chatId) throw new SafeError('Invalid connection identity or reminder configuration.');
   const storageProvider = input.storageProvider || 'feishu';
-  if (!['feishu', 'google'].includes(storageProvider)) throw new SafeError('Invalid storage provider.');
+  if (storageProvider !== 'feishu') throw new SafeError('Invalid storage provider.');
   const reminderTime = input.reminderTime ?? '10:00';
   if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(reminderTime)) throw new SafeError('Invalid reminder time (HH:mm).');
   const timeZone = input.timeZone || 'Asia/Shanghai', language = input.language || 'en';

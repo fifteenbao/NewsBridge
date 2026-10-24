@@ -38,7 +38,7 @@ export function createPairing({ config, store, exclusive, now = () => Date.now()
     }),
     authenticate: async request => {
       if (request.headers.get('Origin') !== origin || !config.extensionId || request.method !== 'POST') return false;
-      const pairId = request.headers.get('X-NewsBridge-Pair'), nonce = request.headers.get('X-NewsBridge-Nonce'), stamp = request.headers.get('X-NewsBridge-Time'), signature = request.headers.get('X-NewsBridge-Signature');
+      const pairId = request.headers.get('X-ReadFlow-Pair'), nonce = request.headers.get('X-ReadFlow-Nonce'), stamp = request.headers.get('X-ReadFlow-Time'), signature = request.headers.get('X-ReadFlow-Signature');
       if (!uuid(pairId) || !uuid(nonce) || !/^\d{13}$/.test(stamp || '') || Math.abs(now() - Number(stamp)) > 60000 || !/^[A-Za-z0-9_-]{86}$/.test(signature || '')) return false;
       const url = new URL(request.url);
       if (url.origin !== target.origin || !url.pathname.startsWith(target.apiPath)) return false;

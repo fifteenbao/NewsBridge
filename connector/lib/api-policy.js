@@ -1,4 +1,5 @@
-import { SafeError, isSafeArticleUrl } from './security.js';
+import { SafeError, isSafeArticleUrl } from '../../src/lib/security.js';
+import { normalizeCaptureMetadata } from '../../src/lib/capture-metadata.js';
 const allowedPath = /^\/open-apis\/(bitable\/v1\/apps\/[A-Za-z0-9_-]+\/tables\/[A-Za-z0-9_-]+\/(fields|records)(\/[A-Za-z0-9_-]+)?|im\/v1\/messages)$/;
 
 function validatePost(content) {
@@ -32,11 +33,18 @@ export function validateFeishuOperation(config, method, path, { params, data } =
     if (Object.keys(params || {}).some(key => !queryKeys.includes(key)) ||
         (params?.page_token !== undefined && (typeof params.page_token !== 'string' || params.page_token.length > 2048))) throw new SafeError('Unsupported API query parameters.');
     if (method === 'POST' && path.endsWith('/records') && (Object.keys(data || {}).join() !== 'fields' ||
-        !data.fields || Object.keys(data.fields).some(key => !['标题', '链接', '内容', '类别', '阅读状态', '推荐指数', '笔记', '时间'].includes(key)))) {
+        !data.fields || Object.keys(data.fields).some(key => !['标题', '链接', '内容', '类别', '阅读状态', '推荐指数', '笔记', '时间', '标签', '备注'].includes(key)))) {
       throw new SafeError('Only the configured reading-table fields may be created.');
     }
-    if (method === 'PUT' && (Object.keys(data || {}).join() !== 'fields' || Object.keys(data.fields || {}).join() !== '阅读状态' ||
-        !['已读', '待阅读', '跳过'].includes(data.fields.阅读状态))) throw new SafeError('Only an explicit reading-status update is allowed.');
+    if (method === 'PUT') {
+      const keys = Object.keys(data?.fields || {});
+      const status = keys.length === 1 && keys[0] === '阅读状态' && ['已读', '待阅读', '跳过'].includes(data.fields.阅读状态);
+      const capture = keys.length > 0 && keys.every(key => ['标签', '备注'].includes(key));
+      if (Object.keys(data || {}).join() !== 'fields' || !status && !capture) throw new SafeError('Only an explicit reading-status or capture-metadata update is allowed.');
+    }
+    if (data?.fields && (Object.hasOwn(data.fields, '标签') || Object.hasOwn(data.fields, '备注'))) {
+      normalizeCaptureMetadata({ ...(Object.hasOwn(data.fields, '标签') ? { tags: data.fields.标签 } : {}), ...(Object.hasOwn(data.fields, '备注') ? { remark: data.fields.备注 } : {}) });
+    }
     if (path.endsWith('/messages')) {
       if (!chatId || data?.receive_id !== chatId || data.msg_type !== 'post' || params?.receive_id_type !== 'chat_id' ||
           !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(data.uuid || '') ||

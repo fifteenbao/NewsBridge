@@ -1,8 +1,8 @@
 import { DiagnosticError } from '../src/lib/diagnostics.js';
 import { SafeError } from '../src/lib/security.js';
-import { createKnowledgeService } from '../src/lib/bitable.js';
-import { createReadingService } from '../src/lib/notifications.js';
-import { validateFeishuOperation } from '../src/lib/api-policy.js';
+import { createKnowledgeService } from './lib/bitable.js';
+import { createReadingService } from './lib/notifications.js';
+import { validateFeishuOperation } from './lib/api-policy.js';
 import { createAdapterClient } from './client.js';
 
 const scopeKey = config => JSON.stringify([config.connectionId, config.baseToken, config.articleTableId, config.chatId || undefined]);

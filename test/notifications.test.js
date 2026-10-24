@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createReadingService } from '../src/lib/notifications.js';
-import { buildReadingMessage } from '../src/lib/messages.js';
+import { createReadingService } from '../connector/lib/notifications.js';
+import { buildReadingMessage } from '../connector/lib/messages.js';
 
 const today = { deliveryDate: '2026-10-12' };
 const config = { baseToken: 'base123', articleTableId: 'tblArticles', schema: 'briefing',

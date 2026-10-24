@@ -1,7 +1,7 @@
-import { cleanDiagnostic } from './diagnostics.js';
-import { SafeError, safeErrorMessage, isSafeArticleUrl } from './security.js';
+import { cleanDiagnostic } from '../../src/lib/diagnostics.js';
+import { SafeError, safeErrorMessage, isSafeArticleUrl } from '../../src/lib/security.js';
 import { nextBatch } from './batch.js';
-import { buildReadingMessage } from './messages.js';
+import { buildReadingMessage, buildReadingCard } from './messages.js';
 
 export function validateNotifications(config) {
   if (!config) return false;
@@ -64,28 +64,37 @@ export function createReadingService({ knowledge, config, request, store, now = 
               throw new SafeError('The pending batch changed status or links. Check the previous send before resolving delivery journal in Settings.');
             }
           } else {
-            const { ready, batch } = nextBatch(eligible);
+            const { ready, batch: candidates } = nextBatch(eligible);
+            const batch = config.notifications.interactive ? candidates.slice(0, 5) : candidates;
             if (!ready) {
               scope.daily.complete = true;
               await store.save(state);
               break;
             }
-            pending = { id: crypto.randomUUID(), createdAt: now(), recordIds: batch.map(a => a.id),
+            const requestId = crypto.randomUUID();
+            pending = { id: requestId, createdAt: now(), recordIds: batch.map(a => a.id),
               deliveryDate,
               links: Object.fromEntries(batch.map(a => [a.id, a.url])),
-              content: JSON.stringify(buildReadingMessage(batch, language, config.notifications.mentionOpenId)) };
+              content: JSON.stringify(config.notifications.interactive ? buildReadingCard(batch, language, requestId) : buildReadingMessage(batch, language, config.notifications.mentionOpenId)),
+              messageType: config.notifications.interactive ? 'interactive' : 'post' };
             scope.pending = pending;
             await store.save(state); // Save the retry key before the external effect.
           }
           const sent = await request('POST', '/open-apis/im/v1/messages', {
             params: { receive_id_type: 'chat_id' }, data: {
-              receive_id: config.notifications.chatId, msg_type: 'post', content: pending.content, uuid: pending.id,
+              receive_id: config.notifications.chatId, msg_type: pending.messageType || 'post', content: pending.content, uuid: pending.id,
             },
           });
           const messageId = sent.data?.message_id;
           if (sent.ok === false || sent.code || !/^om_[A-Za-z0-9]{1,128}$/.test(messageId || '')) throw new SafeError('Feishu did not confirm delivery. The batch remains pending.');
           const stamp = new Date(now()).toISOString();
           pending.recordIds.forEach(id => { scope.sent[id] = stamp; scope.daily.sent[id] = stamp; });
+          if (pending.messageType === 'interactive') {
+            scope.cards ||= {};
+            scope.cards[messageId] = { recordIds: pending.recordIds, requestId: pending.id, at: now() };
+            const entries = Object.entries(scope.cards).sort((a, b) => b[1].at - a[1].at).slice(0, 1000);
+            scope.cards = Object.fromEntries(entries);
+          }
           scope.pending = null;
           await store.save(state);
           deliveries.push({ messageId, recordIds: pending.recordIds });

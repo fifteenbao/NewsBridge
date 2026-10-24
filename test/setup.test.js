@@ -13,7 +13,7 @@ import { createConnectionClient } from '../src/lib/connection.js';
 import { parseTableUrl } from '../src/lib/table-url.js';
 import { area } from '../test-support/chrome-mock.js';
 const exec = promisify(execFile);
-const baseUrl = 'https://connection.example.com/newsbridge/';
+const baseUrl = 'https://connection.example.com/readflow/';
 const key = 't'.repeat(43);
 
 test('sync/pending failures reach browser and diagnostic callback without raw secrets', async () => {
@@ -80,7 +80,7 @@ test('reference adapter preserves numeric HTTP/provider diagnostics and never re
   });
 });
 test('file state survives restart; lock excludes another OS process; init never replaces key or receipts', async t => {
-  const dir = await mkdtemp(join(tmpdir(), 'newsbridge-state-'));
+  const dir = await mkdtemp(join(tmpdir(), 'readflow-state-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const state = await createFileState({ stateDir: dir }); await state.initialize();
   const oldKey = await readFile(join(dir, 'access.key'), 'utf8');
@@ -157,7 +157,7 @@ test('client distinguishes invalid key from unregistered extension without refle
 });
 test('explicit probe reads back URL/text encoding then deletes only its new record; uncertain cleanup blocks retry', async () => {
   const { writeProbe } = await import('../examples/write-probe.js');
-  const { ARTICLE_FIELDS } = await import('../src/lib/bitable.js');
+  const { ARTICLE_FIELDS } = await import('../connector/lib/bitable.js');
   for (const linkType of [1, 15]) {
     for (const failure of ['', 'read', 'delete']) {
       const f = fixture(), methods = []; let saved;
@@ -183,15 +183,15 @@ test('explicit probe reads back URL/text encoding then deletes only its new reco
 });
 test('reference CLI supports explicit env file and state audit; private files reject broad permissions/hard links', async t => {
   const { chmod, link, unlink } = await import('node:fs/promises');
-  const dir = await mkdtemp(join(tmpdir(), 'newsbridge-audit-'));
+  const dir = await mkdtemp(join(tmpdir(), 'readflow-audit-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const file = join(dir, 'host.json'), envFile = join(dir, 'host.env');
   await writeFile(file, JSON.stringify({ stateDir: './state' }), { mode: 0o600 });
-  await writeFile(envFile, 'NEWSBRIDGE_TEST_VALUE=loaded\n', { mode: 0o600 });
+  await writeFile(envFile, 'READFLOW_TEST_VALUE=loaded\n', { mode: 0o600 });
   const cli = new URL('../examples/run.mjs', import.meta.url).pathname;
   const init = await exec(process.execPath, [cli, 'init', file, '--env', envFile]);
   assert.equal(JSON.parse(init.stdout.split('\n')[0]).ok, true);
-  assert.match(init.stdout, /check .*--write/);
+  assert.match(init.stdout, /check .*--env/);
   const audit = await exec(process.execPath, [cli, 'audit', file]); assert.equal(JSON.parse(audit.stdout).hardLinks, 1);
   const state = await createFileState({ stateDir: join(dir, 'state'), authentication: 'paired' });
   await chmod(join(dir, 'state/state.json'), 0o644); await assert.rejects(state.audit());

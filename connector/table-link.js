@@ -6,7 +6,6 @@ export function createTableLinkResolver(config, adapter) {
   const client = createAdapterClient(config, adapter);
   return async value => {
     const link = parseTableUrl(value);
-    if ((link.kind === 'google') !== (config.storageProvider === 'google')) throw new DiagnosticError('TABLE_MISMATCH', 'fields');
     let baseToken = link.baseToken;
     if (link.kind === 'wiki') {
       if (typeof adapter.resolveWikiNode !== 'function') throw new DiagnosticError('LINK_RESOLVER_UNAVAILABLE', 'wiki.resolve');
