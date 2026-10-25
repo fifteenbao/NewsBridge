@@ -11,30 +11,28 @@
       <header class="options-head">
         <div class="brand"><span class="mark">ReadFlow</span></div>
         <nav class="dash-nav" aria-label="ReadFlow">
-          <a id="nav-home" href="#home" data-i18n="home">首页</a>
           <a id="nav-collection" href="#reading-list" data-i18n="collection">收藏</a>
           <a id="nav-settings" href="#settings" data-i18n="settings">设置</a>
         </nav>
         <div class="header-language"><label for="ui-language" data-i18n="interfaceLanguage">界面语言</label><select id="ui-language" aria-describedby="ui-language-hint"><option value="en">English</option><option value="zh">简体中文</option></select></div>
         <p id="ui-language-hint" class="field-hint" data-i18n="interfaceHint">界面立即切换；保存设置后，提醒消息也使用此语言。</p>
       </header>
-      <section id="home" hidden>
-        <div class="section-head"><h1 class="display-h" data-i18n="home">首页</h1></div>
-        <p class="options-lede" data-i18n="lede">收藏文章和视频，由数据库保存资料库，通过飞书主动唤起阅读。</p>
-        <section class="card">
-          <p id="home-counts" class="card-note"></p>
-          <p id="home-status" class="card-note" role="status"></p>
-          <p class="card-note" data-i18n="homeGuide">打开文章或视频，点击 ReadFlow 图标并选择“收藏当前页”。收藏列表仅显示未读内容，处理后可标记已读或跳过。</p>
-        </section>
-      </section>
       <section id="reading-list" hidden>
-        <div class="section-head"><h1 class="display-h" data-i18n="unreadCollection">未读收藏</h1><span class="count" id="list-count"></span></div>
+        <div class="section-head"><h1 class="display-h" data-i18n="collection">收藏</h1><span class="count" id="list-count"></span></div>
+        <p id="home-counts" class="card-note"></p>
+        <p id="home-status" class="card-note" role="status"></p>
+        <a id="collection-setup" href="#settings" data-i18n="startSetup">开始连接设置</a>
+        <nav class="collection-tabs" aria-label="阅读状态">
+          <button id="filter-unread" type="button" aria-pressed="true"></button>
+          <button id="filter-read" type="button" aria-pressed="false"></button>
+          <button id="filter-skip" type="button" aria-pressed="false"></button>
+        </nav>
         <div class="card list-card"><ul class="list dash-list" id="list"></ul></div>
         <p id="list-status" class="card-note" role="alert"></p>
       </section>
       <section id="settings" hidden>
         <div class="section-head"><h1 class="display-h" data-i18n="settings">设置</h1></div>
-        <section class="card setup-guide">
+        <section class="card setup-guide" id="setup-guide" hidden>
           <h2 data-i18n="setupTitle">第一步：准备你的资料库</h2>
           <p class="card-note" data-i18n="setupExplanation">还没有服务地址？点击下方按钮，将任务交给你自己的 AI 助手（agent）配置。已有地址可直接填写下一栏。</p>
           <ol class="setup-steps"><li data-i18n="setupStep1">复制配置任务，连同 ReadFlow 项目目录交给自己的 AI 助手。</li><li data-i18n="setupStep2">获得服务地址后，填写下方输入框。</li><li data-i18n="setupStep3">点击“配对并检查”，请配置者核对指纹并批准，再次检查。</li><li data-i18n="setupStep4">检查成功后保存设置，即可回到文章页收藏。</li></ol>
@@ -50,7 +48,7 @@
           <h2 data-i18n="connection">ReadFlow 资料库</h2>
           <p class="card-note" data-i18n="connectionHint">与数据库服务配对、检查连接，然后保存设置。</p>
           <div class="field field-wide"><div><label class="field-label" for="connectionUrl" data-i18n="connectionUrl">连接服务地址</label><p id="endpoint-hint" class="field-hint" data-i18n="endpointHint">由 AI 助手或配置者提供的完整 HTTPS 地址，不是飞书表格链接。请保留地址中的子路径。</p></div><div class="field-control"><input id="connectionUrl" type="url" autocomplete="off" spellcheck="false" aria-describedby="endpoint-hint endpoint-error" placeholder="https://connection.example.com/readflow/" /><p id="endpoint-error" role="status" aria-live="polite"></p></div></div>
-          <div class="pairing-guide"><p class="card-note" data-i18n="pairHint">无需填写密钥。首次连接需配置者批准，确认后再次检查并保存。</p><p id="pair-status" class="card-note" role="status" aria-live="polite"></p><code id="pair-fingerprint"></code><pre id="pair-command"></pre></div>
+          <div class="pairing-guide"><p id="pair-help" class="card-note" data-i18n="pairHint">无需填写密钥。首次连接需配置者批准，确认后再次检查并保存。</p><p id="pair-status" class="card-note" role="status" aria-live="polite"></p><code id="pair-fingerprint"></code><pre id="pair-command"></pre></div>
           <div class="options-foot"><button class="save-btn" id="check-connection" data-i18n="check">配对并检查 / 重试</button><button class="secondary-btn" id="save" data-i18n="save">保存设置</button><span class="saved-note" id="saved-note" role="status" data-i18n="saved">已保存</span></div>
 
           <p class="card-note" id="auth-status" role="status" aria-live="polite"></p>
@@ -58,13 +56,17 @@
         <details class="advanced-settings card" id="advanced-settings">
           <summary data-i18n="advancedSettings">高级设置 · 提醒、导出与连接管理</summary>
           <p class="card-note" data-i18n="advancedHint">首次连接无需填写。连接成功后按需使用；修改提醒后请点击上方“保存设置”。</p>
-          <div class="options-foot"><button class="save-btn" id="sync" disabled aria-describedby="sync-help" data-i18n="sync">同步到数据库</button></div>
+          <h2 data-i18n="syncHeading">更新本机与资料库</h2>
+          <p class="card-note" data-i18n="syncExplanation">收藏时会自动尝试同步。断网恢复后，或列表、阅读状态不是最新时，可手动更新：上传本机待同步收藏，再获取数据库的最新资料与状态。不会导出到飞书。</p>
+          <div class="options-foot"><button class="secondary-btn" id="sync" disabled aria-describedby="sync-help" data-i18n="sync">立即更新</button></div>
           <p class="card-note" id="sync-help"></p>
+          <p class="card-note" id="sync-status" role="status" aria-live="polite"></p>
           <div class="disconnect-section">
-            <button type="button" class="secondary-btn" id="disconnect" aria-describedby="disconnect-hint" data-i18n="disconnect">取消关联</button>
-            <p id="disconnect-hint" class="field-hint" data-i18n="disconnectHint">保留本机归档和远端数据。服务端提醒会继续运行，如需停止请先保存关闭提醒。</p>
+            <h2 data-i18n="disconnectHeading">更换资料库</h2>
+            <button type="button" class="secondary-btn" id="disconnect" aria-describedby="disconnect-hint" data-i18n="disconnect">断开当前资料库</button>
+            <p id="disconnect-hint" class="field-hint" data-i18n="disconnectHint">仅在更换服务地址或资料库时使用。当前列表归档在本机，重连同一资料库可恢复；数据库不会删除，服务端提醒和配对授权不会撤销。</p>
           </div>
-          <details class="reminder-details"><summary data-i18n="optionalReminders">可选设置 · 每日阅读提醒</summary>
+          <details class="reminder-details" id="reminder-details"><summary data-i18n="optionalReminders">可选设置 · 每日阅读提醒</summary>
           <p class="card-note" data-i18n="reminderExplanation">可选的飞书消息由服务端调度，读取数据库而非导出表格。送达不代表已读。</p>
           <div class="field field-toggle">
             <div><label class="field-label" for="remindersEnabled" data-i18n="reminders">每日未读提醒</label><p id="reminder-help" class="field-hint" data-i18n="reminderHint">可选功能。先配置连接端调度器；修改开关后需保存设置。</p></div>
@@ -76,16 +78,14 @@
             <div><label class="field-label" for="chatId" data-i18n="chatId">提醒会话 ID</label><p class="field-hint" id="chat-id-hint" data-i18n="chatHint">仅飞书阅读消息需要，由服务端配置；数据库收藏和 CSV 下载不需要。</p></div>
             <div class="field-control"><input type="text" id="chatId" data-i18n-placeholder="chatPlaceholder" placeholder="可选：需要提醒时在连接端配置" aria-describedby="chat-id-hint" autocomplete="off" readonly /></div>
           </div>
-          <p class="card-note" id="schedule-note"></p></details>
+          <p class="card-note" id="schedule-note"></p><p id="preferences-status" class="card-note" role="status"></p></details>
         <section class="export-card">
           <h2 data-i18n="exportHeading">导出资料库</h2>
-          <p class="card-note" data-i18n="exportHint">数据库是唯一主库。只有点击下方按钮才同步到飞书；相同链接的行按数据库更新，表格修改不会回写 ReadFlow，其他行会保留。</p>
-          <a id="export-target" target="_blank" rel="noreferrer" hidden></a>
-          <p id="export-target-note" class="field-hint"></p>
-          <div class="options-foot"><button id="export-table" class="secondary-btn" disabled data-i18n="exportTable">同步到飞书多维表格</button><button id="export-csv" class="secondary-btn" disabled data-i18n="exportCsv">下载 CSV</button></div>
+          <p class="card-note" data-i18n="exportHint">下载数据库中的全部素材，包含标题、链接、阅读状态、时间、标签和笔记。先同步本机待发送收藏，再生成 CSV；它不是完整数据库备份。</p>
+          <div class="options-foot"><button id="export-csv" class="secondary-btn" disabled data-i18n="exportCsv">下载 CSV</button></div>
           <p id="export-status" class="card-note" role="status"></p>
         </section>
-        <details class="advanced-settings"><summary data-i18n="advancedDiagnostics">高级 · 消息送达排查</summary>
+        <details class="advanced-settings" id="delivery-details" hidden><summary data-i18n="advancedDiagnostics">高级 · 消息送达排查</summary>
         <section class="card" id="pending-card" hidden>
           <h2 data-i18n="pendingHeading">核对未确认的消息</h2>
           <p class="card-note" id="pending-note"></p>
@@ -95,7 +95,6 @@
         </details>
         <p id="connection-meta" class="card-note"></p>
         </details>
-        <p class="card-note" id="sync-status" role="status" aria-live="polite"></p>
       </section>
     </div>
     <script type="module" src="options.js"></script>

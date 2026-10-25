@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,38 +7,37 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="popup">
-  <header class="popup-header"><span class="mark">ReadFlow</span><label><span class="sr-only" data-i18n="interfaceLanguage">Interface language</span><select id="popup-language"><option value="en">English</option><option value="zh">简体中文</option></select></label></header>
+  <header class="popup-header"><span class="mark">ReadFlow</span><label><span class="sr-only" data-i18n="interfaceLanguage">界面语言</span><select id="popup-language"><option value="en">English</option><option value="zh">简体中文</option></select></label></header>
   <p id="popup-connection" class="connection-badge" role="status"></p>
   <section id="setup-welcome" class="setup-welcome">
-    <h1 data-i18n="welcomeTitle">Your reading starts here</h1>
-    <p data-i18n="welcomeBody">Connect your ReadFlow library, or try local capture first.</p>
-    <ol><li data-i18n="welcomeStep1">Ask your agent to prepare the ReadFlow service and database.</li><li data-i18n="welcomeStep2">Paste the service address in Settings. Feishu is optional.</li><li data-i18n="welcomeStep3">Approve pairing, check and save. Captures then sync to your database.</li></ol>
-    <button id="start-setup" class="btn-primary" data-i18n="startSetup">Set up connection</button>
-    <button id="local-capture" class="secondary-btn" data-i18n="tryLocal">Save locally for now</button>
-    <p class="field-hint" data-i18n="welcomeHelp">Settings includes a task you can copy to your agent. ReadFlow does not contain an AI chat.</p>
+    <h1 data-i18n="welcomeTitle">从这里开始收藏</h1>
+    <p data-i18n="welcomeBody">连接 ReadFlow 资料库，或先在本机体验收藏。</p>
+    <ol><li data-i18n="welcomeStep1">请 agent 准备 ReadFlow 服务与数据库。</li><li data-i18n="welcomeStep2">在设置中填写服务地址，飞书为可选配置。</li><li data-i18n="welcomeStep3">确认配对、检查并保存，收藏即可同步到数据库。</li></ol>
+    <button id="start-setup" class="btn-primary" data-i18n="startSetup">开始连接设置</button>
+    <button id="local-capture" class="secondary-btn" data-i18n="tryLocal">先在本机收藏</button>
+    <p class="field-hint" data-i18n="welcomeHelp">设置页提供可复制给 agent 的配置任务。ReadFlow 本身不提供 AI 对话。</p>
   </section>
   <section id="capture-editor" hidden>
-  <p class="card-note" data-i18n="popupHint">Save this page, or open your collection and settings.</p>
+  <p class="card-note" data-i18n="popupHint">收藏当前页，或打开收藏和设置。</p>
   <p id="capture-page-title" class="capture-page-title"></p>
   <fieldset id="capture-tags-fieldset" disabled class="capture-tags" aria-describedby="capture-tags-hint capture-status">
-    <legend data-i18n="captureTags">Tags (multiple)</legend>
-    <p id="capture-tags-hint" class="field-hint" data-i18n="captureTagsHint">Choose tags or add your own. Up to 20 tags, 50 characters each.</p>
+    <legend data-i18n="captureTags">标签（可多选）</legend>
+    <p id="capture-tags-hint" class="field-hint" data-i18n="captureTagsHint">勾选已有标签，也可添加新标签。最多 20 个，每个不超过 50 字。</p>
     <div id="capture-tag-options" class="capture-tag-options"></div>
-    <p id="capture-tags-empty" class="field-hint" data-i18n="captureTagsEmpty">No tags yet. Add your first tag below.</p>
-    <label for="capture-new-tag" data-i18n="captureNewTag">New tag</label>
-    <div class="capture-tag-entry"><input id="capture-new-tag" type="text" maxlength="50" autocomplete="off" aria-describedby="capture-tags-hint capture-status" /><button id="capture-add-tag" type="button" data-i18n="captureAddTag">Add</button></div>
+    <p id="capture-tags-empty" class="field-hint" data-i18n="captureTagsEmpty">暂无标签，可在下方添加第一个标签。</p>
+    <label for="capture-new-tag" data-i18n="captureNewTag">新标签</label>
+    <div class="capture-tag-entry"><input id="capture-new-tag" type="text" maxlength="50" autocomplete="off" aria-describedby="capture-tags-hint capture-status" /><button id="capture-add-tag" type="button" data-i18n="captureAddTag">添加</button></div>
   </fieldset>
-  <label for="capture-remark" data-i18n="captureRemark">Remark</label>
+  <label for="capture-remark" data-i18n="captureRemark">笔记</label>
   <textarea disabled id="capture-remark" rows="3" maxlength="2000" aria-describedby="capture-remark-hint capture-status"></textarea>
-  <p id="capture-remark-hint" class="field-hint" data-i18n="captureRemarkHint">Why did you save this? What should a future AI Review help with? Optional, up to 2000 characters.</p>
-  <button class="btn-primary" id="capture" data-i18n="capture">Save this page</button>
+  <p id="capture-remark-hint" class="field-hint" data-i18n="captureRemarkHint">为什么收藏？希望后续 AI Review 帮你解决什么？选填，最多 2000 字。</p>
+  <button class="btn-primary" id="capture" data-i18n="capture">收藏当前页</button>
   </section>
+  <p id="capture-status" class="card-note" role="status" aria-live="polite" aria-atomic="true"></p>
   <nav class="popup-nav" aria-label="ReadFlow">
-    <button id="open-home" data-i18n="home">Home</button>
-    <button id="open-collection" data-i18n="collection">Collection</button>
-    <button id="open-settings" data-i18n="settings">Settings</button>
+    <button id="open-collection" data-i18n="collection">收藏</button>
+    <button id="open-settings" data-i18n="settings">设置</button>
   </nav>
-  <p id="capture-status" class="card-note" role="status" aria-live="polite"></p>
   <script type="module" src="popup.js"></script>
 </body>
 </html>

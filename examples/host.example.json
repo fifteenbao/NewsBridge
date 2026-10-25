@@ -11,8 +11,7 @@
   },
   "feishu": {
     "appId": "",
-    "chatId": "",
-    "export": null
+    "chatId": ""
   },
   "feishuInbox": {
     "enabled": false,

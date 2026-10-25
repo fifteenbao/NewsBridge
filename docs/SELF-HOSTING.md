@@ -16,7 +16,6 @@
 | `connector.reminderTime/timeZone/language` | 默认偏好，用户保存的设置优先 |
 | `feishu.appId` | 可选应用 ID，与环境变量 `FEISHU_APP_ID` 一致 |
 | `feishu.chatId` | 可选提醒目标会话 |
-| `feishu.export` | 可选 `{baseToken,articleTableId}`，null 表示不提供表格导出 |
 | `feishuInbox` | 可选的加密收录／卡片回调，限制确切会话与发送人 |
 
 运行 `node examples/run.mjs init private/host.json` 初始化。不会重置已有数据库身份和内容。健康检查不调用飞书；启动时数据库缺失会报错，不会静默创建新主库。目录 0700、文件 0600，归服务用户所有，禁止符号链接和多重硬链接。
@@ -29,7 +28,7 @@
 
 ## 可选飞书能力
 
-通过服务环境或 `--env private/host.env` 提供 `FEISHU_APP_ID` / `FEISHU_APP_SECRET`。按需开权限：导出需要字段／记录读取、记录新增／更新和目标表格授权。只有设置页按钮或显式 `export` 命令会写表，不注册自动导出任务。覆盖规则见 [SETUP](../SETUP.md)。
+通过服务环境或 `--env private/host.env` 提供 `FEISHU_APP_ID` / `FEISHU_APP_SECRET`，只用于消息及回调。无需多维表格权限或模型 API 凭证；现有对话型 agent 自行管理分析所需环境。
 
 发消息需要发送权限及固定会话；链接收录和卡片回调另需加密密钥、验证 Token 和白名单，见 [飞书指南](FEISHU-INBOX.md)。桌面登录或其他 agent 能聊天，不代表此服务已拥有 API 权限。
 

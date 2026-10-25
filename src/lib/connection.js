@@ -4,7 +4,7 @@ import { parseTableUrl } from './table-url.js';
 import { storedEndpoint, endpointValue, endpointPermission, collectionArchiveKey } from './endpoint.js';
 import { SafeError, readJsonResponse } from './security.js';
 import { parseConnectionUrl } from './connection-url.js';
-const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences', 'export', 'csv']);
+const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences', 'csv']);
 export const validAccessKey = value => typeof value === 'string' && /^[A-Za-z0-9_-]{32,512}$/.test(value);
 const validIdentity = value => value && /^[A-Za-z0-9.@_:-]{1,254}$/.test(value.connectionId || '') && /^[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+$/.test(value.base || '');
 const sameIdentity = (a, b) => a.connectionId === b.connectionId && a.base === b.base;
@@ -66,7 +66,7 @@ export function createConnectionClient({ baseUrl, storage, fetchImpl, hasPermiss
         throw new SafeError('Invalid table snapshot; local data was preserved.');
       }
       if (result.articles.some(article => article.tags !== undefined && (!Array.isArray(article.tags) || article.tags.length > 200 || article.tags.some(tag => typeof tag !== 'string' || tag.length > 1000)) ||
-          article.remark !== undefined && (typeof article.remark !== 'string' || article.remark.length > 64000))) {
+          article.remark !== undefined && (typeof article.remark !== 'string' || article.remark.length > 128002))) {
         throw new SafeError('Invalid capture metadata snapshot; local edits were preserved.');
       }
       if (result.captureMetadata !== undefined && (!result.captureMetadata || !Array.isArray(result.captureMetadata.tagOptions) || result.captureMetadata.tagOptions.length > 200 ||

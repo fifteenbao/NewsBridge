@@ -42,10 +42,12 @@ export async function setReadingStatus(id, status) {
   if (!READING_STATUSES.includes(status)) throw new SafeError('Invalid reading status.');
   const item = (await getItems()).find(item => item.id === id);
   if (!item) throw new SafeError('Reading item not found.');
+  let readAt = null;
   if (item.feishuRecordId && !item.feishuDeleted) {
-    await callKnowledge('read', { recordId: item.feishuRecordId, base: item.feishuBase, status });
+    const result = await callKnowledge('read', { recordId: item.feishuRecordId, base: item.feishuBase, status });
+    readAt = Number.isFinite(result.readAt) ? result.readAt : null;
   }
-  const items = (await getItems()).map(item => item.id === id ? { ...item, status, read: status !== '待阅读' } : item);
+  const items = (await getItems()).map(item => item.id === id ? { ...item, status, read: status !== '待阅读', readAt } : item);
   await setItems(items); return items;
 }
 export async function deleteItem(id) {

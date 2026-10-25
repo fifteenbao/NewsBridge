@@ -1,3 +1,4 @@
+import { readingNote } from './lib/reading-note.js';
 import { requestPairing, getPairingStatus } from './lib/pairing-client.js';
 import { SafeError, safeErrorMessage } from './lib/security.js';
 import { getItems, setItems, setSettings, setRead, setReadingStatus, addItem, deleteItem, disconnectCollection } from './lib/storage.js';
@@ -106,10 +107,9 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (sender.id !== chrome.runtime.id || sender.frameId !== undefined && sender.frameId !== 0 || !fromOptions && !fromPopup) return;
   if (fromPopup && !['CAPTURE_PAGE', 'CAPTURE_CONTEXT', 'POPUP_STATUS'].includes(message?.type)) return;
   if (fromOptions && ['CAPTURE_PAGE', 'CAPTURE_CONTEXT'].includes(message?.type)) return;
-  if (!['POPUP_STATUS', 'CAPTURE_PAGE', 'CAPTURE_CONTEXT', 'SET_STATUS', 'SET_READ', 'DELETE_ITEM', 'SAVE_SETTINGS', 'CONNECTION_STATUS', 'SYNC', 'PENDING', 'RESOLVE_PENDING', 'VALIDATE_CONNECTION', 'DISCONNECT', 'PAIR_REQUEST', 'PAIR_STATUS', 'EXPORT_TABLE', 'EXPORT_CSV'].includes(message?.type)) return;
+  if (!['POPUP_STATUS', 'CAPTURE_PAGE', 'CAPTURE_CONTEXT', 'SET_STATUS', 'SET_READ', 'DELETE_ITEM', 'SAVE_SETTINGS', 'CONNECTION_STATUS', 'SYNC', 'PENDING', 'RESOLVE_PENDING', 'VALIDATE_CONNECTION', 'DISCONNECT', 'PAIR_REQUEST', 'PAIR_STATUS', 'EXPORT_CSV'].includes(message?.type)) return;
   if (!message || typeof message !== 'object' || JSON.stringify(message).length > 8192) { reply({ ok: false, error: 'Invalid request.' }); return; }
   enqueue(async () => {
-    if (message.type === 'EXPORT_TABLE') return callConnection('export');
     if (message.type === 'EXPORT_CSV') return callConnection('csv');
     if (message.type === 'POPUP_STATUS') {
       const { collectionIdentity, localCaptureMode } = await chrome.storage.local.get(['collectionIdentity', 'localCaptureMode']);
@@ -131,7 +131,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       const items = await getItems();
       const item = items.find(item => item.url === tab.url && !item.feishuDeleted);
       const { knowledgeSync } = await chrome.storage.local.get('knowledgeSync');
-      return { ok: true, url: tab.url, title: tab.title || tab.url, tags: item?.tags || [], remark: item?.remark || '',
+      return { ok: true, url: tab.url, title: tab.title || tab.url, tags: item?.tags || [], remark: readingNote(item),
         tagOptions: [...new Set([...(item?.tags || []), ...(knowledgeSync?.tagOptions || []), ...items.flatMap(item => item.tags || [])])].slice(0, 200) };
     }
     if (['SET_READ', 'SET_STATUS', 'DELETE_ITEM'].includes(message.type) && (typeof message.id !== 'string' || message.id.length > 512)) throw new SafeError('Invalid item ID.');

@@ -1,3 +1,4 @@
+import { createAgentApi } from './agent-api.js';
 // Wire into an existing HTTPS router; importing this file never binds a port.
 import { validateHostConfig } from '../connector/host-config.js';
 import { DiagnosticError } from '../src/lib/diagnostics.js';
@@ -29,6 +30,9 @@ export async function createHost(config, { getCredentials = () => ({ appId: proc
     const runtimeConfig = { ...config.connector, chatId: config.feishu?.chatId || '', interactive: config.feishuInbox?.enabled === true };
     const connector = createDatabaseConnector({ library, config: runtimeConfig, feishu, ...shared });
     const pairing = createPairing({ config, ...shared });
+    const agentPairing = createPairing({ config, ...shared, agent: true });
+    const agentApi = createAgentApi({ config, pairing: agentPairing, library, exclusive: persistence.exclusive });
+    const agentPath = new URL('v1/agent/', config.baseUrl.endsWith('/') ? config.baseUrl : config.baseUrl + '/').pathname;
     const handleRequest = createHttpHandler({ baseUrl: config.baseUrl, extensionId: config.extensionId,
       authenticate: pairing.authenticate, pairing, connector });
     const inbox = config.feishuInbox?.enabled ? createFeishuInbox({
@@ -44,7 +48,7 @@ export async function createHost(config, { getCredentials = () => ({ appId: proc
     const eventUrl = new URL('events/feishu', config.baseUrl.endsWith('/') ? config.baseUrl : config.baseUrl + '/').href;
     const route = async request => request.url === eventUrl
       ? inbox ? inbox.handleRequest(request) : new Response(null, { status: 404 })
-      : handleRequest(request);
-    return { connector, handleRequest: route, pairing, library, feishu, inbox, store: library.store, exclusive: persistence.exclusive, close: () => library.close() };
+      : new URL(request.url).pathname.startsWith(agentPath) ? agentApi(request) : handleRequest(request);
+    return { connector, handleRequest: route, pairing, agentPairing, library, feishu, inbox, store: library.store, exclusive: persistence.exclusive, close: () => library.close() };
   } catch (error) { library.close(); throw error; }
 }

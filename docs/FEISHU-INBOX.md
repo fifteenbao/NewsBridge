@@ -46,3 +46,7 @@ node examples/run.mjs inbox-resolve private/host.json --receipt-id RECEIPT_ID --
 确认消息已存在再选 `sent`，确认未发送才选 `not-sent`，后者允许下次 ingest 发新请求。每日提醒使用独立的 `pending` 日志及设置页高级诊断。不要删除数据库或发送记录强制重试。
 
 处理送达结果不改变阅读状态。收录保留上限 2000 条消息，满额报错，不静默丢弃。
+
+## 与已有 agent 的关系
+
+分析由用户已有的对话型 agent 执行，ReadFlow 不调用模型。本页回调仍只处理授权用户链接和已发卡片动作，不处理 agent 回复。自动任务移交、分析结果关联与回写属于后续工作；不能假设两机器人会互相收到消息。

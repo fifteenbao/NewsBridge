@@ -4,7 +4,7 @@ import { validateSchedule } from '../src/lib/reminder-schedule.js';
 import { createReadingService } from './lib/notifications.js';
 import { libraryCsv } from './lib/csv.js';
 
-const allowed = { health: [], sync: ['items'], read: ['base', 'recordId', 'status', 'read'], preferences: ['language', 'remindersEnabled', 'reminderTime', 'timeZone'], pending: [], resolve: ['uuid', 'outcome'], export: [], csv: [] };
+const allowed = { health: [], sync: ['items'], read: ['base', 'recordId', 'status', 'read'], preferences: ['language', 'remindersEnabled', 'reminderTime', 'timeZone'], pending: [], resolve: ['uuid', 'outcome'], csv: [] };
 export function createDatabaseConnector({ library, config = {}, feishu, store, exclusive, now = () => Date.now() }) {
   const identity = library.identity;
   const timing = validateSchedule(config.reminderTime || '10:00', config.timeZone || 'Asia/Shanghai');
@@ -25,13 +25,13 @@ export function createDatabaseConnector({ library, config = {}, feishu, store, e
       if (!Object.hasOwn(allowed, action) || !payload || typeof payload !== 'object' || Array.isArray(payload) || Object.keys(payload).some(k => !['provider', 'expectedIdentity', ...allowed[action]].includes(k))) throw new SafeError('Unsupported database operation.');
       if (payload.provider !== undefined && payload.provider !== 'database') throw new SafeError('ReadFlow uses its database as the source of truth.');
       if (payload.expectedIdentity && (payload.expectedIdentity.connectionId !== identity.connectionId || payload.expectedIdentity.base !== identity.base)) throw new SafeError('Library identity changed. Disconnect before associating another library.');
-      if (action === 'health') return envelope({ connected: true, schema: { valid: true, checkedFields: 10 }, capabilities: { tableRead: true, tableWrite: true, database: true, export: feishu.exportAvailable, csv: true },
-        configuration: { storageProvider: 'database', libraryName: 'ReadFlow', exportUrl: feishu.exportUrl, exportAvailable: feishu.exportAvailable, chatId: config.chatId || '', remindersAvailable: config.remindersEnabled, ...await prefs() } });
+      if (action === 'health') return envelope({ connected: true, schema: { valid: true, checkedFields: 7 }, capabilities: { tableRead: true, tableWrite: true, database: true, csv: true },
+        configuration: { storageProvider: 'database', libraryName: 'ReadFlow', chatId: config.chatId || '', remindersAvailable: config.remindersEnabled, ...await prefs() } });
       if (action === 'sync') return envelope({ enabled: true, base: identity.base, ...library.sync(payload.items || []) });
       if (action === 'read') {
         if (payload.base !== identity.base) throw new SafeError('Library identity changed.');
-        library.setStatus(payload.recordId, payload.status ?? (payload.read === true ? '已读' : payload.read === false ? '待阅读' : ''));
-        return envelope({});
+        const article = library.setStatus(payload.recordId, payload.status ?? (payload.read === true ? '已读' : payload.read === false ? '待阅读' : ''));
+        return envelope({ readAt: article.readAt ?? null });
       }
       if (action === 'preferences') {
         if (!['en', 'zh'].includes(payload.language) || payload.remindersEnabled !== undefined && typeof payload.remindersEnabled !== 'boolean') throw new SafeError('Invalid preferences.');
@@ -40,12 +40,6 @@ export function createDatabaseConnector({ library, config = {}, feishu, store, e
         state.preferences = { ...previous, ...validateSchedule(payload.reminderTime ?? previous.reminderTime, payload.timeZone ?? previous.timeZone), language: payload.language,
           ...(payload.remindersEnabled !== undefined ? { remindersEnabled: payload.remindersEnabled } : {}) };
         await store.save(state); return envelope({});
-      }
-      if (action === 'export') {
-        // An explicit authenticated request is the only path to Bitable writes.
-        const result = await feishu.exportArticles(library.list());
-        const state = await store.load(); state.lastExport = { ...result, at: new Date(now()).toISOString() }; await store.save(state);
-        return envelope(state.lastExport);
       }
       if (action === 'csv') return envelope({ csv: libraryCsv(library.list()), filename: 'readflow.csv', count: library.list().length });
       const state = await store.load(), scope = state.scopes[scopeKey];

@@ -668,3 +668,29 @@ body.popup { width: 340px; padding: 20px; }
 #pair-fingerprint, #pair-command, #connection-meta { overflow-wrap: anywhere; white-space: pre-wrap; }
 .setup-guide h2 { text-wrap: balance; }
 .setup-guide .card-note, .field-hint { text-wrap: pretty; }
+
+/* Persistent capture feedback sits directly below the save button. */
+#capture-status:not(:empty) { padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); line-height: 1.6; overflow-wrap: anywhere; }
+#capture-status[data-state="success"], #capture-status[data-state="local"] { color: var(--green-deep); background: var(--green-tint); }
+#capture-status[data-state="error"] { border-color: #a63030; color: #8a2222; background: #fff1f0; }
+
+/* A compact library with persistent state filters and aligned row metadata. */
+body.options .options-wrap { max-width: 1180px; }
+.collection-tabs { display: flex; gap: 8px; margin: 16px 0; flex-wrap: wrap; }
+.collection-tabs button { padding: 9px 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); color: var(--ink); font: inherit; cursor: pointer; font-variant-numeric: tabular-nums; }
+.collection-tabs button[aria-pressed="true"] { background: var(--green-tint); border-color: var(--green); color: var(--green-deep); }
+.collection-tabs button:focus-visible, .collection-note summary:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.dash-list .collection-row { display: grid; grid-template-columns: minmax(200px, 2fr) minmax(100px, 1fr) minmax(150px, 1.4fr) 90px 28px; align-items: start; gap: 16px; padding: 16px; animation: none; }
+.collection-row > * { min-width: 0; }
+.collection-tags { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--ink-soft); }
+.collection-tags .tag { overflow-wrap: anywhere; }
+.collection-note { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.collection-note summary { cursor: pointer; }
+.collection-note p { white-space: pre-wrap; margin-top: 8px; }
+@media (max-width: 700px) {
+  .dash-list .collection-row { grid-template-columns: minmax(0, 1fr) 90px 28px; gap: 10px; }
+  .collection-row .item-body { grid-column: 1; grid-row: 1; }
+  .collection-row .status-select { grid-column: 2; grid-row: 1; }
+  .collection-row .del { grid-column: 3; grid-row: 1; }
+  .collection-row .collection-tags, .collection-row .collection-note { grid-column: 1 / -1; }
+}

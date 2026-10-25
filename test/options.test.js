@@ -7,7 +7,8 @@ import { area, event } from '../test-support/chrome-mock.js';
 
 // Interaction test against the real options module; no visual/browser claim.
 test('settings pair with approval, use one language selector and group provider links without parsed-ID inputs', async t => {
-  const original = { chrome: globalThis.chrome, document: globalThis.document, location: globalThis.location, addEventListener: globalThis.addEventListener };
+  const original = { confirm: globalThis.confirm, chrome: globalThis.chrome, document: globalThis.document, location: globalThis.location, addEventListener: globalThis.addEventListener };
+  let allowDisconnect = false; globalThis.confirm = () => allowDisconnect;
   const viewEvents = {}; globalThis.addEventListener = (name, fn) => { viewEvents[name] = fn; };
   t.after(() => Object.assign(globalThis, original));
   class Element {
@@ -31,7 +32,7 @@ test('settings pair with approval, use one language selector and group provider 
   globalThis.location = { hash: '' };
   let operatorApproved = false, permissionGranted = true, connected = false, saved = false, provider = 'database', lastSaved, calls = [];
   const local = { connectionEndpoint: 'https://connection.example.com/readflow/', items: [
-    { id: 'unread', title: 'Unread', url: 'https://example.com/a', read: false, savedAt: '2026-10-14T00:00:00Z' },
+    { id: 'unread', title: 'Unread', tags: ['AI'], remark: '<script>note</script>', url: 'https://example.com/a', read: false, savedAt: '2026-10-14T00:00:00Z' },
     { id: 'read', title: 'Read', url: 'https://example.com/b', read: true, status: '已读', savedAt: '2026-10-14T00:00:00Z' },
     { id: 'skip', title: 'Skip', url: 'https://example.com/c', read: true, status: '跳过', savedAt: '2026-10-14T00:00:00Z' },
   ] };
@@ -55,6 +56,7 @@ test('settings pair with approval, use one language selector and group provider 
       }
       if (message.type === 'DISCONNECT') { connected = false; saved = false; local.items = []; local.connectionEndpoint = ''; return { ok: true }; }
       if (message.type === 'CONNECTION_STATUS') return status();
+      if (message.type === 'SET_STATUS') { const item = local.items.find(i => i.id === message.id); item.status = message.status; item.read = message.status !== '待阅读'; return { ok: true }; }
       if (message.type === 'PENDING') return { ok: true, pending: null };
       if (message.type === 'SAVE_SETTINGS') { saved = true; lastSaved = message.settings; local.connectionEndpoint = lastSaved.connectionUrl; return { ok: true, settings: lastSaved }; }
       return { ok: true };
@@ -62,20 +64,43 @@ test('settings pair with approval, use one language selector and group provider 
   };
   const drain = () => new Promise(resolve => setImmediate(resolve));
   await import('../src/options.js'); await drain();
-  assert.equal(el('settings').hidden, false); assert.equal(el('home').hidden, true);
-  assert.equal(el('reading-list').hidden, true); assert.equal(el('list').children.length, 1);
+  assert.equal(el('setup-guide').hidden, false);
+  assert.equal(el('settings').hidden, true);
+  assert.equal(el('reading-list').hidden, false); assert.equal(el('list').children.length, 1);
   assert.match(el('home-counts').textContent, /1 条未读.*1 条已读.*1 条跳过/);
+  for (const id of ['filter-unread', 'filter-read', 'filter-skip']) assert.match(el(id).textContent, /\(1\)/);
+  await el('filter-read').listeners.click();
+  assert.equal(el('list').children[0].children[0].children[0].textContent, 'Read');
+  assert.equal(el('filter-read').getAttribute('aria-pressed'), 'true');
+  await el('filter-skip').listeners.click();
+  assert.equal(el('list').children[0].children[0].children[0].textContent, 'Skip');
+  await el('filter-unread').listeners.click();
+  const row = el('list').children[0];
+  assert.equal(row.children[1].children[0].textContent, 'AI');
+  assert.equal(row.children[2].children[1].textContent, '<script>note</script>');
+  row.children[3].value = '已读'; await row.children[3].listeners.change();
+  assert.match(el('filter-unread').textContent, /\(0\)/);
+  assert.match(el('filter-read').textContent, /\(2\)/);
+  await el('filter-read').listeners.click();
+  const moved = el('list').children[0]; moved.children[3].value = '待阅读'; await moved.children[3].listeners.change();
+  await el('filter-unread').listeners.click();
+
+
   location.hash = '#reading-list'; viewEvents.hashchange();
   assert.equal(el('settings').hidden, true); assert.equal(el('reading-list').hidden, false);
   location.hash = '#settings'; viewEvents.hashchange();
   assert.match(el('pair-status').textContent, /未配对/); assert.equal(el('sync').disabled, true);
   assert.ok(el('connection-meta').textContent.includes(version));
   assert.doesNotMatch(html, /id="(?:provider|tableUrl)"/);
-  assert.equal(el('export-table').disabled, true);
+  assert.doesNotMatch(html, /id="export-table"/);
   await el('check-connection').listeners.click(); assert.match(el('pair-status').textContent, /等待服务端/);
+  assert.match(el('auth-status').textContent, /等待配置者批准/);
   operatorApproved = true; await el('check-connection').listeners.click();
   assert.equal(el('chatId').value, 'oc_reminders');
   await el('save').listeners.click(); await drain();
+  assert.equal(el('setup-guide').hidden, true);
+  await el('sync').listeners.click();
+  assert.match(el('sync-status').textContent, /更新完成/);
   assert.equal(el('sync').disabled, false); assert.equal(el('export-csv').disabled, false);
   const beforeLanguageChange = calls.length;
   el('ui-language').value = 'zh'; await el('ui-language').listeners.change();
@@ -92,7 +117,15 @@ test('settings pair with approval, use one language selector and group provider 
   el('remindersEnabled').checked = false; el('remindersEnabled').listeners.change(); await el('save').listeners.click();
   assert.equal(lastSaved.remindersEnabled, false);
   assert.ok(calls.some(c => c.type === 'VALIDATE_CONNECTION'));
-  await el('disconnect').listeners.click();  assert.match(el('list-count').textContent, /0/);
+  const disconnectCount = calls.filter(c => c.type === 'DISCONNECT').length;
+  await el('disconnect').listeners.click();
+  assert.equal(calls.filter(c => c.type === 'DISCONNECT').length, disconnectCount);
+  assert.equal(el('setup-guide').hidden, true);
+  allowDisconnect = true;
+  await el('disconnect').listeners.click();
+  assert.equal(el('setup-guide').hidden, false);
+  assert.equal(el('disconnect').disabled, true);
+  assert.match(el('list-count').textContent, /0/);
   el('connectionUrl').value = 'https://connection.example.com/readflow/';
   assert.doesNotMatch(html, /value="google"/);
   await el('check-connection').listeners.click();
@@ -120,7 +153,7 @@ test('setup keeps the first action visible and advanced controls collapsed', asy
   assert.ok(html.indexOf('id="connectionUrl"') < advanced);
   assert.ok(html.indexOf('id="save"') < advanced);
   assert.doesNotMatch(html, /<details[^>]*id="advanced-settings"[^>]*\bopen\b/);
-  for (const id of ['sync', 'disconnect', 'remindersEnabled', 'export-table', 'export-csv', 'connection-meta']) {
+  for (const id of ['sync', 'disconnect', 'remindersEnabled', 'export-csv', 'connection-meta']) {
     assert.ok(html.indexOf(`id="${id}"`) > advanced, id);
   }
 });

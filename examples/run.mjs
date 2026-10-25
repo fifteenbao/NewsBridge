@@ -1,14 +1,16 @@
-// Explicit commands; export, ingest and daily may have external effects.
+// Explicit commands; ingest and daily may have external effects.
 import { loadEnvFile } from 'node:process';
 import { loadHostConfig, createHost } from './host.js';
 import { createFileState } from './file-state.js';
 import { openLibrary } from './database.js';
 import { SafeError, safeErrorMessage } from '../src/lib/security.js';
 import { cleanDiagnostic } from '../src/lib/diagnostics.js';
-const usage = 'Usage: node examples/run.mjs init|audit|export|inbox-pending|inbox-resolve|ingest|check|pending|daily|pair-list|pair-approve|pair-reject|pair-revoke private/host.json [--env private/host.env] [--pair-id ID --fingerprint HEX] [--receipt-id ID --outcome sent|not-sent]';
+const usage = 'Agent approval uses agent-pair-list|agent-pair-approve|agent-pair-reject|agent-pair-revoke with the same options. Usage: node examples/run.mjs init|audit|inbox-pending|inbox-resolve|ingest|check|pending|daily|pair-list|pair-approve|pair-reject|pair-revoke private/host.json [--env private/host.env] [--pair-id ID --fingerprint HEX] [--receipt-id ID --outcome sent|not-sent]';
 try {
-  const [command, file, ...options] = process.argv.slice(2);
-  if (!['init', 'audit', 'export', 'inbox-pending', 'inbox-resolve', 'pair-list', 'pair-approve', 'pair-reject', 'pair-revoke', 'ingest', 'check', 'pending', 'daily'].includes(command) || !file) throw new SafeError(usage);
+  const [inputCommand, file, ...options] = process.argv.slice(2);
+  const agent = inputCommand?.startsWith('agent-pair-');
+  const command = agent ? inputCommand.slice(6) : inputCommand;
+  if (!['init', 'audit', 'inbox-pending', 'inbox-resolve', 'pair-list', 'pair-approve', 'pair-reject', 'pair-revoke', 'ingest', 'check', 'pending', 'daily'].includes(command) || !file) throw new SafeError(usage);
   let envFile, pairId, fingerprint, receiptId, outcome;
   for (let i = 0; i < options.length; i++) {
     if (options[i] === '--env' && options[i + 1] && !envFile) envFile = options[++i];
@@ -33,7 +35,7 @@ try {
       if (command === 'init') {
         const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
         console.log('Next, check the database connection: node examples/run.mjs check ' + quote(file) + (envFile ? ' --env ' + quote(envFile) : ''));
-        console.log('Feishu credentials are optional until enabling messages or manual table export. Browser connections use fingerprint approval; no access key needs to be copied.');
+        console.log('Feishu credentials are optional until enabling messages. Browser connections use fingerprint approval; no access key needs to be copied.');
       }
     } catch { throw new SafeError('State setup/audit failed. Check stateDir ownership, 0700 directory, 0600 regular files, nlink=1, valid JSON/key, free disk space and state.lock. Existing files were not reset.'); }
   } else {
@@ -47,7 +49,7 @@ try {
       const intake = host.inbox ? await host.inbox.processPending() : { ok: true, skipped: true };
       if (command === 'ingest') { console.log(JSON.stringify(intake)); host.close(); process.exit(0); }
     }
-    const result = command.startsWith('pair-') ? await host.pairing.manage(command.slice(5), pairId, fingerprint) : command === 'daily' ? await selected.connector.daily() : await selected.connector.dispatch(command === 'check' ? 'health' : command === 'export' ? 'export' : 'pending');
+    const result = command.startsWith('pair-') ? await (agent ? host.agentPairing : host.pairing).manage(command.slice(5), pairId, fingerprint) : command === 'daily' ? await selected.connector.daily() : await selected.connector.dispatch(command === 'check' ? 'health' : 'pending');
     console.log(JSON.stringify(command === 'check' ? { ok: result.ok, capabilities: result.capabilities } : command === 'pending' ? { ok: result.ok, pending: !!result.pending } : result));
     host.close();
   }

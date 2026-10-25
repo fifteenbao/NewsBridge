@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ReadFlow",
   "version": "0.4.1",
-  "description": "收藏文章与视频到 ReadFlow 资料库，可选飞书阅读提醒、手动表格同步与 CSV 导出。",
+  "description": "收藏文章与视频到 ReadFlow 资料库，可选飞书阅读提醒、CSV 导出；后续分析由已有对话型 agent 承担。",
   "action": {
     "default_title": "ReadFlow",
     "default_icon": {

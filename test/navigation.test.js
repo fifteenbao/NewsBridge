@@ -5,10 +5,10 @@ import { isUnread, readingStatus } from '../src/lib/reading-state.js';
 import { eligibleItems } from '../connector/lib/batch.js';
 import { fixture } from '../test-support/connector-fixture.js';
 
-test('unconfigured default opens settings; explicit home/collection/settings remain distinct views', () => {
-  assert.equal(initialRoute('', false), 'settings'); assert.equal(initialRoute('', true), 'home');
-  assert.equal(initialRoute('#unknown', false), 'settings');
-  for (const route of ['home', 'reading-list', 'settings']) assert.equal(initialRoute('#' + route, false), route);
+test('collection is the default home, including offline use; settings remains explicit', () => {
+  assert.equal(initialRoute('', false), 'reading-list'); assert.equal(initialRoute('', true), 'reading-list');
+  assert.equal(initialRoute('#unknown', false), 'reading-list');
+  for (const route of ['reading-list', 'settings']) assert.equal(initialRoute('#' + route, false), route);
 });
 test('read and skipped items leave the unread collection and reminder selection without deletion', () => {
   const items = [

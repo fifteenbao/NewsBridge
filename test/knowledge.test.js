@@ -158,3 +158,12 @@ test('notification receipt and read state are independent after sync', () => {
   assert.ok(merged.notifiedAt);
   assert.equal(eligibleItems([merged]).length, 0);
 });
+
+test('database read timestamps survive snapshot merge and explicit clearing', () => {
+  const source = { recordId: 'recTime', title: 'Read timestamp', url: capture.url, read: true, status: '已读', readAt: 1791766800000, savedAt: 1791700000000, topicIds: [] };
+  const response = { base: 'db/library', bindings: [{ id: capture.id, recordId: source.recordId }], topics: [], articles: [source] };
+  assert.equal(mergeKnowledge([capture], response)[0].readAt, source.readAt);
+  assert.equal(mergeKnowledge([], response)[0].readAt, source.readAt);
+  const cleared = mergeKnowledge([{ ...capture, readAt: source.readAt }], { ...response, articles: [{ ...source, readAt: null, status: '待阅读', read: false }] });
+  assert.equal(cleared[0].readAt, null);
+});

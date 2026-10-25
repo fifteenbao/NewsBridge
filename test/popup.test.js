@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { area } from '../test-support/chrome-mock.js';
 
-test('icon popup offers home, collection and settings, and captures through the trusted worker', async t => {
+test('icon popup offers collection and settings, and captures through the trusted worker', async t => {
   const original = { chrome: globalThis.chrome, document: globalThis.document, window: globalThis.window };
   t.after(() => Object.assign(globalThis, original));
   class Element {
@@ -26,9 +26,9 @@ test('icon popup offers home, collection and settings, and captures through the 
     tabs: { create: async info => opened.push(info.url) }, runtime: { getURL: path => 'chrome-extension://test/' + path,
       sendMessage: async message => { sent.push(message); return message.type === 'POPUP_STATUS' ? { ok: true, connected: true } : message.type === 'CAPTURE_CONTEXT' ? { ok: true, url: 'https://example.com/a', title: 'Article', tags: ['AI'], remark: 'Existing remark', tagOptions: ['AI', 'Research'] } : result; } } };
   await import('../src/popup.js');
-  assert.equal(get('open-home').textContent, '首页'); assert.equal(get('open-collection').textContent, '收藏'); assert.equal(get('open-settings').textContent, '设置');
-  for (const id of ['open-home', 'open-collection', 'open-settings']) await get(id).events.click();
-  assert.deepEqual(opened, ['chrome-extension://test/src/options.html', 'chrome-extension://test/src/options.html#reading-list', 'chrome-extension://test/src/options.html#settings']);
+  assert.equal(get('open-collection').textContent, '收藏'); assert.equal(get('open-settings').textContent, '设置');
+  for (const id of ['open-collection', 'open-settings']) await get(id).events.click();
+  assert.deepEqual(opened, ['chrome-extension://test/src/options.html#reading-list', 'chrome-extension://test/src/options.html#settings']);
   assert.equal(get('setup-welcome').hidden, true);
   assert.equal(get('capture-editor').hidden, false);
   assert.equal(sent[0].type, 'POPUP_STATUS');
@@ -42,8 +42,32 @@ test('icon popup offers home, collection and settings, and captures through the 
   for (const option of get('capture-tag-options').children) { const checkbox = option.children[0]; checkbox.checked = false; checkbox.events.change(); }
   get('capture-remark').value = ''; await get('capture').events.click();
   assert.deepEqual(sent.at(-1).metadata, { tags: [], remark: '' });
+  let finishSave;
+  result = new Promise(resolve => { finishSave = resolve; });
+  const saving = get('capture').events.click();
+  assert.equal(get('capture').textContent, '正在收藏…');
+  assert.equal(get('capture').disabled, true);
+  assert.equal(get('capture-remark').disabled, true);
+  const requestCount = sent.length;
+  await get('capture').events.click();
+  assert.equal(sent.length, requestCount, 'duplicate click must not submit another capture');
+  finishSave({ ok: true, saved: true, synced: false, error: 'Service unavailable' });
+  await saving;
+  assert.equal(get('capture').textContent, '收藏成功');
+  assert.match(get('capture-status').textContent, /尚未同步到数据库/);
+  assert.equal(get('capture-status').getAttribute('data-state'), 'local');
+  assert.equal(get('capture-remark').disabled, false);
+  assert.ok(html.indexOf('id="capture-status"') < html.indexOf('class="popup-nav"'));
   result = { ok: false, error: 'This page cannot be saved. Open an HTTP(S) article or video page and try again.' };
   await get('capture').events.click(); assert.match(get('capture-status').textContent, /无法收藏/); assert.equal(get('capture').disabled, false);
+  assert.equal(get('capture').textContent, '重新收藏');
+  assert.match(get('capture-status').textContent, /^收藏失败：/);
+  assert.equal(get('capture-status').getAttribute('data-state'), 'error');
+  result = undefined; await get('capture').events.click();
+  assert.match(get('capture-status').textContent, /^收藏失败：/);
+  result = { ok: true, saved: true, synced: true }; await get('capture').events.click();
+  assert.equal(get('capture').textContent, '收藏成功');
+  assert.equal(get('capture-status').getAttribute('data-state'), 'success');
 });
 
 

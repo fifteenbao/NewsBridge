@@ -8,19 +8,20 @@ function normalized(key) {
   const result = { kty: 'EC', crv: 'P-256', x: key.x, y: key.y }; createPublicKey({ key: result, format: 'jwk' }); return result;
 }
 const fingerprint = key => createHash('sha256').update(JSON.stringify(key)).digest('hex');
-export function createPairing({ config, store, exclusive, now = () => Date.now() }) {
+export function createPairing({ config, store, exclusive, now = () => Date.now(), agent = false }) {
   const target = parseConnectionUrl(config.baseUrl), origin = `chrome-extension://${config.extensionId}`;
-  const stateOf = state => state.pairing ||= { requests: {}, keys: {}, nonces: {} };
-  function matching(request) { return request.extensionId === config.extensionId && request.endpoint === target.baseUrl; }
+  const slot = agent ? 'agentPairing' : 'pairing';
+  const stateOf = state => state[slot] ||= { requests: {}, keys: {}, nonces: {} };
+  function matching(request) { return request.extensionId === (agent ? 'agent' : config.extensionId) && request.endpoint === target.baseUrl; }
   return {
     request: body => exclusive(async () => {
-      if (!/^[a-p]{32}$/.test(config.extensionId || '') || !body || Object.keys(body).join() !== 'publicKey') throw new SafeError('Register the Chrome extension ID before pairing.');
+      if ((!agent && !/^[a-p]{32}$/.test(config.extensionId || '')) || !body || Object.keys(body).join() !== 'publicKey') throw new SafeError('Register the Chrome extension ID before pairing.');
       const publicKey = normalized(body.publicKey), fp = fingerprint(publicKey), state = await store.load(), pairing = stateOf(state);
       for (const [pairId, key] of Object.entries(pairing.keys)) if (matching(key) && key.fingerprint === fp) return { ok: true, pairId, fingerprint: fp, status: 'approved' };
       for (const [id, request] of Object.entries(pairing.requests)) if (request.expiresAt < now()) delete pairing.requests[id];
       for (const [pairId, request] of Object.entries(pairing.requests)) if (matching(request) && request.fingerprint === fp) return { ok: true, pairId, fingerprint: fp, status: 'pending' };
       if (Object.keys(pairing.requests).length >= 3) throw new SafeError('Pairing queue is full. Ask the operator to reject stale requests.');
-      const pairId = randomUUID(); pairing.requests[pairId] = { publicKey, fingerprint: fp, endpoint: target.baseUrl, extensionId: config.extensionId, createdAt: now(), expiresAt: now() + 10 * 60000 };
+      const pairId = randomUUID(); pairing.requests[pairId] = { publicKey, fingerprint: fp, endpoint: target.baseUrl, extensionId: agent ? 'agent' : config.extensionId, createdAt: now(), expiresAt: now() + 10 * 60000 };
       await store.save(state); return { ok: true, pairId, fingerprint: fp, status: 'pending' };
     }),
     manage: (action, pairId, expectedFingerprint) => exclusive(async () => {
@@ -37,7 +38,7 @@ export function createPairing({ config, store, exclusive, now = () => Date.now()
       await store.save(state); return { ok: true };
     }),
     authenticate: async request => {
-      if (request.headers.get('Origin') !== origin || !config.extensionId || request.method !== 'POST') return false;
+      if ((agent ? request.headers.has('Origin') : request.headers.get('Origin') !== origin || !config.extensionId) || request.method !== 'POST') return false;
       const pairId = request.headers.get('X-ReadFlow-Pair'), nonce = request.headers.get('X-ReadFlow-Nonce'), stamp = request.headers.get('X-ReadFlow-Time'), signature = request.headers.get('X-ReadFlow-Signature');
       if (!uuid(pairId) || !uuid(nonce) || !/^\d{13}$/.test(stamp || '') || Math.abs(now() - Number(stamp)) > 60000 || !/^[A-Za-z0-9_-]{86}$/.test(signature || '')) return false;
       const url = new URL(request.url);

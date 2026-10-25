@@ -1,10 +1,11 @@
+import { readingNote } from './lib/reading-note.js';
 import { isUnread, readingStatus } from './lib/reading-state.js';
 import { initialRoute, ROUTES } from './lib/navigation.js';
 import { chooseLanguage, translate, localizeError } from './lib/options-i18n.js';
 import { endpointValue, requestEndpointPermission } from './lib/endpoint.js';
 import { validateSchedule } from './lib/reminder-schedule.js';
 import { isSafeArticleUrl } from './lib/security.js';
-let uiLanguage = 'en', pairingView = null;
+let uiLanguage = 'zh', pairingView = null;
 const t = (key, values) => translate(uiLanguage, key, values);
 const errorText = error => localizeError(error, uiLanguage);
 const locale = () => uiLanguage === 'zh' ? 'zh-CN' : 'en';
@@ -50,14 +51,20 @@ function savedAgo(iso) {
   return then.toLocaleDateString(locale(), { month: "short", day: "numeric" });
 }
 
+let selectedStatus = '待阅读';
+const statusTabs = [['filter-unread', '待阅读', 'unread'], ['filter-read', '已读', 'read'], ['filter-skip', '跳过', 'skip']];
 async function renderList() {
   const list = document.getElementById("list");
-  const items = (await getItems()).filter(isUnread);
+  const all = (await getItems()).filter(item => !item.feishuDeleted);
+  const items = all.filter(item => readingStatus(item) === selectedStatus);
+  for (const [id, value, key] of statusTabs) {
+    element(id).textContent = `${t(key)} (${all.filter(item => readingStatus(item) === value).length})`;
+    element(id).setAttribute('aria-pressed', String(selectedStatus === value));
+  }
   list.replaceChildren();
 
   const count = document.getElementById("list-count");
-  const unread = items.filter((it) => !it.read).length;
-  count.textContent = t('count', { unread });
+  count.textContent = t('collectionCount', { count: all.length });
 
   if (items.length === 0) {
     list.appendChild(emptyState());
@@ -77,7 +84,7 @@ function emptyState() {
   );
   const h = document.createElement("p");
   h.className = "display";
-  h.textContent = t('emptyHeading');
+  h.textContent = t('emptyStatus', { status: t(statusTabs.find(tab => tab[1] === selectedStatus)[2]) });
   const p = document.createElement("p");
   p.textContent = t('emptyHint');
   li.append(ornament, h, p);
@@ -86,8 +93,7 @@ function emptyState() {
 
 function renderItem(item, index) {
   const li = document.createElement("li");
-  li.className = "item" + (item.read ? " read" : "");
-  li.style.animationDelay = `${Math.min(index, 10) * 25}ms`;
+  li.className = "item collection-row";
 
   const check = document.createElement('select');
   check.className = 'status-select';
@@ -129,6 +135,18 @@ function renderItem(item, index) {
   }
 
   body.append(title, meta);
+  const tags = document.createElement('div'); tags.className = 'collection-tags';
+  for (const value of item.tags || []) {
+    const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = value; tags.appendChild(tag);
+  }
+  if (!item.tags?.length) tags.textContent = t('noTags');
+  const note = document.createElement('details'); note.className = 'collection-note';
+  const summary = document.createElement('summary');
+  const noteText = readingNote(item);
+  summary.textContent = noteText ? noteText.slice(0, 80) + (noteText.length > 80 ? '…' : '') : t('noNote');
+  note.appendChild(summary);
+  if (noteText) { const full = document.createElement('p'); full.textContent = noteText; note.appendChild(full); }
+
 
   // Delete button.
   const del = document.createElement("button");
@@ -145,7 +163,7 @@ function renderItem(item, index) {
     catch (error) { alert(errorText(error)); }
   });
 
-  li.append(check, body, del);
+  li.append(body, tags, note, check, del);
   return li;
 }
 
@@ -162,10 +180,11 @@ let connection = null, pairingState = { approved: false }, validationSequence = 
 let pending = null, authError = null, pendingError = null, tableLinkError = null;
 const element = id => document.getElementById(id);
 let currentRoute = 'settings';
+let configuredLibrary = false, busyAction = null;
 function applyRoute(route) {
   currentRoute = ROUTES.includes(route) ? route : 'settings';
   for (const view of ROUTES) element(view).hidden = view !== currentRoute;
-  for (const [id, view] of [['nav-home', 'home'], ['nav-collection', 'reading-list'], ['nav-settings', 'settings']]) {
+  for (const [id, view] of [['nav-collection', 'reading-list'], ['nav-settings', 'settings']]) {
     if (view === currentRoute) element(id).setAttribute('aria-current', 'page'); else element(id).removeAttribute('aria-current');
   }
   document.title = `ReadFlow · ${t(currentRoute === 'reading-list' ? 'collection' : currentRoute)}`;
@@ -173,6 +192,7 @@ function applyRoute(route) {
 async function renderHome() {
   const items = (await getItems()).filter(item => !item.feishuDeleted);
   element('home-counts').textContent = t('homeCounts', { unread: items.filter(isUnread).length, skipped: items.filter(item => item.status === '跳过').length, read: items.filter(item => item.read && item.status !== '跳过').length });
+  element('collection-setup').hidden = configuredLibrary;
   element('home-status').textContent = t(connection?.connected && pairingState.approved ? 'homeReady' : 'homeNeedsSetup');
 }
 function fillSettings(settings) {
@@ -184,9 +204,8 @@ function fillSettings(settings) {
 function updateSyncButton() {
   const endpoint = addressFeedback();
   const ready = !!endpoint && endpoint === pairingState.baseUrl && !checkingConnection && connection?.connected && pairingState.approved;
-  element('sync').disabled = !ready;
-  element('export-csv').disabled = !ready;
-  element('export-table').disabled = !ready || !connection?.configuration?.exportAvailable;
+  element('sync').disabled = !ready || !!busyAction;
+  element('export-csv').disabled = !ready || !!busyAction;
   element('sync-help').textContent = t(ready ? 'syncReady' : 'syncUnavailable');
 }
 function renderPairingStatus() {
@@ -213,7 +232,7 @@ function collectSettings() {
   for (const id of ['reminderTime', 'timeZone']) element(id).removeAttribute('aria-invalid');
   try { validateSchedule(element('reminderTime').value, element('timeZone').value); } catch (error) {
     for (const id of ['reminderTime', 'timeZone']) element(id).setAttribute('aria-invalid', 'true');
-    element('schedule-note').textContent = errorText(error); element('reminderTime').focus(); throw error;
+    element('schedule-note').textContent = errorText(error); element('advanced-settings').open = true; element('reminder-details').open = true; element('reminderTime').focus(); throw error;
   }
   return { connectionUrl, provider: 'database', reminderTime: element('reminderTime').value, timeZone: element('timeZone').value, language: uiLanguage,
     ...(!element('remindersEnabled').disabled ? { remindersEnabled: element('remindersEnabled').checked } : {}) };
@@ -223,13 +242,17 @@ async function showSyncStatus() {
   element('sync-status').textContent = knowledgeSync?.error ? errorText(knowledgeSync.error) : '';
 }
 function renderPending() {
+  element('delivery-details').hidden = !connection?.connected || (!pending && !pendingError);
   element('pending-card').hidden = !connection?.connected || !pending;
   if (pending) element('pending-note').textContent = t('pendingNote', { count: pending.recordIds.length,
     time: new Date(pending.createdAt).toLocaleString(locale()), reference: pending.id });
 }
 function renderConnection(status) {
   connection = status;
-  element('auth-status').textContent = authError ? errorText(authError) : t(checkingConnection ? 'checking' : status?.connected ? 'connected' : 'disconnected');
+  element('setup-guide').hidden = configuredLibrary;
+  element('pair-help').hidden = configuredLibrary;
+  element('preferences-status').textContent = preferencesDirty ? t('settingsUnsaved') : '';
+  element('auth-status').textContent = authError ? errorText(authError) : t(checkingConnection ? 'checking' : pairingView?.status === 'pending' ? 'pairWaiting' : status?.connected ? configuredLibrary ? 'connected' : 'connectedUnsaved' : configuredLibrary ? 'configuredOffline' : 'disconnected');
   if (pendingError) element('auth-status').textContent += t('pendingFailed', { error: errorText(pendingError) });
   const config = status?.configuration;
   // The chat belongs to reminder configuration, not to the pasted table URL.
@@ -240,13 +263,7 @@ function renderConnection(status) {
     if (config?.timeZone) element('timeZone').value = config.timeZone;
     element('remindersEnabled').checked = config?.remindersEnabled === true;
   }
-  element('disconnect').disabled = !status?.connected && !pairingState.approved;
-  const target = config?.exportUrl;
-  const safeTarget = typeof target === 'string' && /^https:\/\/(?:my\.)?feishu\.cn\/base\/[A-Za-z0-9]+\?table=tbl[A-Za-z0-9]+$/.test(target);
-  element('export-target').hidden = !status?.connected || !safeTarget;
-  element('export-target').textContent = t('openExportTable');
-  if (safeTarget) element('export-target').href = target; else element('export-target').removeAttribute('href');
-  element('export-target-note').textContent = t(config?.exportAvailable ? 'exportConfigured' : 'exportNotConfigured');
+  element('disconnect').disabled = !configuredLibrary || !!busyAction;
   element('schedule-note').textContent = config?.remindersAvailable ? t('schedule', { state: t(config.remindersEnabled ? 'on' : 'off'), zone: config.timeZone, time: config.reminderTime || '10:00' }) : t('scheduleUnavailable');
   element('connection-meta').textContent = t('footer', { server: pairingState.baseUrl || t('offline'), version: chrome.runtime.getManifest().version, extensionId: chrome.runtime.id || t('unverified'), protocol: status?.protocolVersion || t('unverified') });
   updateSyncButton(); renderPending();
@@ -264,7 +281,7 @@ async function showConnection({ verifyOnly = false, authorize = false } = {}) {
   const sequence = ++validationSequence;
   authError = null; pendingError = null; tableLinkError = null; checkingConnection = true;
   element('auth-status').textContent = t('checking');
-  element('sync').disabled = true;
+  updateSyncButton();
   try {
     const connectionUrl = endpointValue(element('connectionUrl').value);
     if (authorize && !await requestEndpointPermission(connectionUrl)) throw new Error(t('permissionDenied'));
@@ -301,11 +318,24 @@ async function showConnection({ verifyOnly = false, authorize = false } = {}) {
 function bindAction(id, action) {
   const button = element(id);
   button.addEventListener('click', async () => {
+    if (busyAction) return;
+    busyAction = id;
+    const controls = ['save', 'check-connection', 'disconnect', 'sync', 'export-csv', 'confirm-sent', 'confirm-not-sent'];
+    const previous = controls.map(name => [name, element(name).disabled]);
+    for (const name of controls) element(name).disabled = true;
+    const feedback = id === 'sync' ? 'sync-status' : id.startsWith('export-') ? 'export-status' : 'auth-status';
+    element(feedback).textContent = '';
     button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    updateSyncButton();
     try { await action(); }
-    catch (error) {
-      element('sync-status').textContent = errorText(error);
-    } finally { if (id === 'sync') updateSyncButton(); else button.disabled = false; }
+    catch (error) { element(feedback).textContent = errorText(error); }
+    finally {
+      busyAction = null;
+      for (const [name, disabled] of previous) element(name).disabled = disabled;
+      element('disconnect').disabled = !configuredLibrary;
+      button.removeAttribute('aria-busy'); updateSyncButton();
+    }
   });
 }
 function flashSaved() {
@@ -322,6 +352,7 @@ async function init() {
   const { uiLanguage: savedLanguage } = await chrome.storage.local.get('uiLanguage');
   uiLanguage = chooseLanguage(savedLanguage);
   translatePage();
+  for (const [id, value] of statusTabs) element(id).addEventListener('click', async () => { selectedStatus = value; await renderList(); });
   applyRoute(initialRoute(location.hash, false));
   globalThis.addEventListener?.('hashchange', () => applyRoute(initialRoute(location.hash, connection?.connected && pairingState.approved && !element('sync').disabled)));
   await renderList();
@@ -333,6 +364,8 @@ async function init() {
     catch { element('task-preview').open = true; element('agent-task').focus(); element('agent-task').select(); element('copy-agent-status').textContent = t('taskCopyFallback'); }
   });
   await refreshPairingStatus();
+  const savedLibrary = await chrome.storage.local.get(['collectionIdentity', 'connectionEndpoint']);
+  configuredLibrary = !!(savedLibrary.collectionIdentity && savedLibrary.connectionEndpoint) || pairingState.approved && !!pairingState.baseUrl;
   renderConnection(null);
   element('connectionUrl').addEventListener('input', () => { validationSequence++; checkingConnection = false; pending = null; connection = null; pairingView = null; authError = null; renderConnection(null); renderPairingStatus(); addressFeedback(); });
   element('ui-language').addEventListener('change', async () => {
@@ -341,41 +374,46 @@ async function init() {
     translatePage(); renderPairingStatus(); renderConnection(connection);
     await renderList(); await renderHome(); await showSyncStatus();
   });
-  for (const id of ['reminderTime', 'timeZone']) element(id).addEventListener('change', () => { preferencesDirty = true; });
-  element('disconnect').addEventListener('click', async () => {
+  for (const id of ['reminderTime', 'timeZone']) element(id).addEventListener('change', () => { preferencesDirty = true; element('preferences-status').textContent = t('settingsUnsaved'); });
+  bindAction('disconnect', async () => {
+    if (!globalThis.confirm(t('disconnectConfirm'))) return;
     validationSequence++; checkingConnection = false; tableLinkError = null; pendingError = null;
-    try { await mutate({ type: 'DISCONNECT' }); connection = null; pending = null; preferencesDirty = false; authError = null;
+    try { await mutate({ type: 'DISCONNECT' }); configuredLibrary = false; connection = null; pending = null; preferencesDirty = false; authError = null;
       fillSettings({ language: uiLanguage }); await refreshPairingStatus(); renderConnection(null); await renderList(); applyRoute('settings');
     } catch (error) { element('auth-status').textContent = errorText(error); }
   });
-  element('remindersEnabled').addEventListener('change', () => { preferencesDirty = true; });
+  element('remindersEnabled').addEventListener('change', () => { preferencesDirty = true; element('preferences-status').textContent = t('settingsUnsaved'); });
   bindAction('save', async () => {
     const settings = collectSettings(), sequence = validationSequence;
     if (!await requestEndpointPermission(settings.connectionUrl)) throw new Error(t('permissionDenied'));
     if (sequence !== validationSequence) throw new Error('Connection settings changed during the request. Retry.');
     const result = await mutate({ type: 'SAVE_SETTINGS', settings });
-    preferencesDirty = false; fillSettings(result.settings);
+    configuredLibrary = true; preferencesDirty = false; fillSettings(result.settings);
     await refreshPairingStatus();
     flashSaved(); await showConnection(); await renderList();
   });
-  async function exportLibrary(type) {
+  async function exportLibrary() {
     element('export-status').textContent = t('exportWorking');
     try {
       await mutate({ type: 'SYNC' });
-      const result = await mutate({ type });
-      if (type === 'EXPORT_CSV') {
+      const result = await mutate({ type: 'EXPORT_CSV' });
+      {
         if (typeof result.csv !== 'string') throw new Error(t('genericFailure'));
         const url = URL.createObjectURL(new Blob([result.csv], { type: 'text/csv;charset=utf-8' }));
         const link = document.createElement('a'); link.href = url; link.download = 'readflow.csv'; link.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
-      element('export-status').textContent = t(type === 'EXPORT_CSV' ? 'csvDone' : 'exportDone');
+      element('export-status').textContent = t('csvDone');
     } catch (error) { element('export-status').textContent = errorText(error); }
   }
-  bindAction('export-table', () => exportLibrary('EXPORT_TABLE'));
-  bindAction('export-csv', () => exportLibrary('EXPORT_CSV'));
+  bindAction('export-csv', exportLibrary);
   bindAction('check-connection', () => showConnection({ verifyOnly: true, authorize: true }));
-  bindAction('sync', async () => { await mutate({ type: 'SYNC' }); await showSyncStatus(); await showConnection(); });
+  bindAction('sync', async () => {
+    element('sync-status').textContent = t('syncWorking');
+    await mutate({ type: 'SYNC' });
+    await renderList(); await renderHome();
+    element('sync-status').textContent = t('syncDone');
+  });
   for (const [id, outcome] of [['confirm-sent', 'sent'], ['confirm-not-sent', 'not-sent']]) {
     bindAction(id, async () => { await mutate({ type: 'RESOLVE_PENDING', uuid: pending?.id, outcome }); await showConnection(); });
   }

@@ -4,7 +4,7 @@ let language = chooseLanguage(saved);
 const t = (key, values) => translate(language, key, values);
 document.documentElement.lang = language;
 for (const node of document.querySelectorAll('[data-i18n]')) node.textContent = t(node.getAttribute('data-i18n'));
-for (const [id, route] of [['open-home', ''], ['open-collection', '#reading-list'], ['open-settings', '#settings']]) {
+for (const [id, route] of [['open-collection', '#reading-list'], ['open-settings', '#settings']]) {
   document.getElementById(id).addEventListener('click', async () => {
     await chrome.tabs.create({ url: chrome.runtime.getURL('src/options.html') + route });
     window.close();
@@ -13,6 +13,7 @@ for (const [id, route] of [['open-home', ''], ['open-collection', '#reading-list
 const element = id => document.getElementById(id);
 const button = element('capture'), status = element('capture-status');
 const selectedTags = new Set(), options = new Set();
+let saving = false;
 let context, initial = { tags: [], remark: '' };
 button.disabled = true;
 function renderTags() {
@@ -81,19 +82,30 @@ try {
   status.textContent = localizeError(error, language);
 }
 button.addEventListener('click', async () => {
-  if (!context || !addTag()) return;
+  if (saving || !context || !addTag()) return;
   const tags = [...selectedTags], remark = element('capture-remark').value;
-  if (remark.length > 2000) { element('capture-remark').setAttribute('aria-invalid', 'true'); status.textContent = t('captureRemarkLimit'); return; }
+  if (remark !== initial.remark && remark.length > 2000) { element('capture-remark').setAttribute('aria-invalid', 'true'); status.textContent = t('captureRemarkLimit'); return; }
   element('capture-remark').removeAttribute('aria-invalid');
   const metadata = {};
   if (JSON.stringify([...tags].sort()) !== JSON.stringify([...initial.tags].sort())) metadata.tags = tags;
   if (remark !== initial.remark) metadata.remark = remark;
-  button.disabled = true; status.textContent = t('capturing');
+  saving = true; button.disabled = true;
+  button.textContent = t('capturing'); button.setAttribute('aria-busy', 'true');
+  element('capture-tags-fieldset').disabled = true; element('capture-remark').disabled = true;
+  status.setAttribute('data-state', 'saving'); status.textContent = t('capturing');
   try {
     const result = await chrome.runtime.sendMessage({ type: 'CAPTURE_PAGE', expectedUrl: context.url, metadata });
     if (!result?.ok || !result.saved) throw new Error(result?.error || t('genericFailure'));
     initial = { tags, remark };
+    button.textContent = t('captureSuccess');
+    status.setAttribute('data-state', result.synced ? 'success' : 'local');
     status.textContent = t(result.synced ? 'captureSynced' : 'captureLocal') + (result.error ? ` ${localizeError(result.error, language)}` : '');
-  } catch (error) { status.textContent = localizeError(error, language); }
-  finally { button.disabled = false; }
+  } catch (error) {
+    button.textContent = t('captureRetry');
+    status.setAttribute('data-state', 'error');
+    status.textContent = t('captureFailed', { reason: localizeError(error, language) });
+  } finally {
+    saving = false; button.disabled = false; button.removeAttribute('aria-busy');
+    element('capture-tags-fieldset').disabled = false; element('capture-remark').disabled = false;
+  }
 });

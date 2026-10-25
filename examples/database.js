@@ -1,3 +1,4 @@
+import { readingNote } from '../src/lib/reading-note.js';
 // Single-host SQLite source of truth. No Feishu calls, listeners or timers.
 import { DatabaseSync } from 'node:sqlite';
 import { open, lstat } from 'node:fs/promises';
@@ -7,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { SafeError, isSafeArticleUrl } from '../src/lib/security.js';
 import { metadataUpdate } from '../src/lib/capture-metadata.js';
 
-export async function openLibrary(stateDir, { initialize = false } = {}) {
+export async function openLibrary(stateDir, { initialize = false, now = () => Date.now() } = {}) {
   const privateStat = (s, directory = false) => {
     if (!(directory ? s.isDirectory() : s.isFile()) || s.mode & 0o077 || (!directory && s.nlink !== 1) || process.getuid && s.uid !== process.getuid()) throw new SafeError('Database requires private ownership and permissions.');
   };
@@ -37,12 +38,36 @@ export async function openLibrary(stateDir, { initialize = false } = {}) {
     }
     const libraryId = db.prepare('SELECT value FROM metadata WHERE key=?').get('libraryId')?.value;
     if (!/^[a-f0-9]{32}$/.test(libraryId || '')) throw new SafeError('Initialize the ReadFlow database before starting.');
+    db.exec('CREATE TABLE IF NOT EXISTS reading_events (id INTEGER PRIMARY KEY, article_id TEXT NOT NULL, status TEXT NOT NULL, at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS reviews (id TEXT PRIMARY KEY, data TEXT NOT NULL);');
     const identity = { connectionId: `db:${libraryId}`, base: `${libraryId}/library` };
     const list = () => db.prepare('SELECT data FROM articles ORDER BY rowid').all().map(row => JSON.parse(row.data));
     const get = id => { const row = db.prepare('SELECT data FROM articles WHERE id=?').get(id); return row ? JSON.parse(row.data) : null; };
     const put = article => db.prepare('INSERT INTO articles VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(article.recordId, article.url, JSON.stringify(article));
     const transaction = work => { db.exec('BEGIN IMMEDIATE'); try { const value = work(); db.exec('COMMIT'); return value; } catch (error) { db.exec('ROLLBACK'); throw error; } };
+    // Consolidate old note/remark text atomically; reopening never appends it twice.
+    transaction(() => {
+      for (const article of list()) {
+        if (Object.hasOwn(article, 'note')) {
+          article.remark = readingNote(article); delete article.note; put(article);
+        }
+      }
+    });
+    const transition = (article, status, time) => {
+      if (article.status !== status) {
+        db.prepare('INSERT INTO reading_events(article_id,status,at) VALUES (?,?,?)').run(article.recordId, status, time);
+        article.readAt = status === '已读' ? time : null;
+      }
+      article.status = status; article.read = status !== '待阅读'; delete article.snoozedUntil;
+    };
     return {
+      readingEvents: () => db.prepare('SELECT article_id AS recordId, status, at FROM reading_events ORDER BY id').all(),
+      reviews: () => db.prepare('SELECT data FROM reviews ORDER BY rowid DESC').all().map(row => JSON.parse(row.data)),
+      saveReview(review) { return transaction(() => {
+        const existing = db.prepare('SELECT data FROM reviews WHERE id=?').get(review.id);
+        if (existing) { const saved = JSON.parse(existing.data); if (saved.digest !== review.digest || saved.agentId !== review.agentId) throw new SafeError('Review request ID reused.'); return saved; }
+        if (db.prepare('SELECT count(*) n FROM reviews').get().n >= 10000) throw new SafeError('Review capacity reached.');
+        const saved = { ...review, savedAt: now() }; db.prepare('INSERT INTO reviews VALUES (?,?)').run(saved.id, JSON.stringify(saved)); return saved;
+      }); },
       identity, libraryId, list, get, close: () => db.close(),
       store: {
         async load() { return JSON.parse(db.prepare('SELECT data FROM runtime_state WHERE id=1').get().data); },
@@ -65,8 +90,8 @@ export async function openLibrary(stateDir, { initialize = false } = {}) {
               if (db.prepare('SELECT count(*) n FROM articles').get().n >= 10000) throw new SafeError('Library exceeds the 10000-item limit.');
               article = { recordId: 'rec' + randomUUID().replaceAll('-', ''), captureId: item.id, url: new URL(item.url).href,
                 title: item.title || item.url, savedAt: Date.parse(item.savedAt), read: item.status === '跳过' || !!item.read,
-                status: item.status === '跳过' ? '跳过' : item.read ? '已读' : '待阅读',
-                tags: [], remark: '', note: '', content: '', category: '待分类', recommendation: null, topicIds: [] };
+                status: item.status === '跳过' ? '跳过' : item.read ? '已读' : '待阅读', readAt: null,
+                tags: [], remark: '', topicIds: [] };
               created++;
             }
             if (item.metadataUpdate) {
@@ -85,19 +110,19 @@ export async function openLibrary(stateDir, { initialize = false } = {}) {
           return { created, bindings, metadataBindings, articles, topics: [], captureMetadata: { available: true, tagOptions: [...new Set(articles.flatMap(a => a.tags))].slice(0, 200) } };
         });
       },
-      applyAction(eventId, id, action, time = Date.now()) {
+      applyAction(eventId, id, action, time = now()) {
         if (!/^[A-Za-z0-9_-]{1,128}$/.test(eventId || '') || !['read', 'skip', 'later'].includes(action)) throw new SafeError('Invalid reading action.');
         return transaction(() => {
           if (db.prepare('SELECT id FROM actions WHERE id=?').get(eventId)) return { duplicate: true };
           const article = get(id); if (!article) throw new SafeError('Reading item not found.');
           if (action === 'later') { if (article.read) throw new SafeError('This item is already read or skipped.'); article.snoozedUntil = time + 86400000; }
-          else { article.status = action === 'read' ? '已读' : '跳过'; article.read = true; }
+          else transition(article, action === 'read' ? '已读' : '跳过', time);
           put(article); db.prepare('INSERT INTO actions VALUES (?)').run(eventId); return { duplicate: false };
         });
       },
       setStatus(id, status) {
         if (!['待阅读', '已读', '跳过'].includes(status)) throw new SafeError('Invalid reading status.');
-        return transaction(() => { const article = get(id); if (!article) throw new SafeError('Reading item not found.'); article.status = status; article.read = status !== '待阅读'; delete article.snoozedUntil; put(article); return article; });
+        return transaction(() => { const article = get(id); if (!article) throw new SafeError('Reading item not found.'); transition(article, status, now()); put(article); return article; });
       },
     };
   } catch (error) { db.close(); throw error; }

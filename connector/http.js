@@ -11,7 +11,7 @@ export function createHttpHandler({ baseUrl, extensionId, authenticate, connecto
     throw new SafeError('Configure an HTTPS base URL, extension ID and authentication verifier.');
   }
   const expectedOrigin = extensionId ? `chrome-extension://${extensionId}` : null;
-  const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences', 'export', 'csv', ...(pairing ? ['pair'] : [])]);
+  const actions = new Set(['health', 'sync', 'read', 'pending', 'resolve', 'preferences', 'csv', ...(pairing ? ['pair'] : [])]);
   const allowedHeaders = pairing ? ['content-type', 'x-readflow-pair', 'x-readflow-time', 'x-readflow-nonce', 'x-readflow-signature'] : ['authorization', 'content-type'];
   let active = 0;
   return async request => {
