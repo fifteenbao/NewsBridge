@@ -22,8 +22,8 @@
 
 ## Release versioning
 
-- Check package/manifest alignment and regenerate versioned archives for every user-requested release. Record changes in CHANGELOG.md. Never commit, tag, push or publish without user authorization.
-- Release versions are chosen by the user. Keep manifest.json and package.json aligned; do not increment versions merely for internal edits or task iterations.
+- Before every push containing new changes, increment the patch version by default (for example 0.4.1 → 0.4.2), unless the user explicitly specifies a different target version. Update package.json and manifest.json together, record the changes in CHANGELOG.md, update version references in documentation, and regenerate versioned archives before committing and pushing. A retry of the same versioned commit after a failed push must not increment the version again. Never commit, tag, push or publish without user authorization.
+- Keep manifest.json and package.json aligned. Internal edits and task iterations do not each require a version bump; the bump is required when preparing new changes for a push. This standing versioning preference does not itself authorize a push.
 
 ## Verification
 
