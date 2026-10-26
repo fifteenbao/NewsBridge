@@ -65,11 +65,11 @@ export function createConnectionClient({ baseUrl, storage, fetchImpl, hasPermiss
           result.articles.some(a => !/^rec[A-Za-z0-9]+$/.test(a?.recordId || '') || typeof a.read !== 'boolean' || typeof a.url !== 'string' || !Array.isArray(a.topicIds))) {
         throw new SafeError('Invalid table snapshot; local data was preserved.');
       }
-      if (result.articles.some(article => article.tags !== undefined && (!Array.isArray(article.tags) || article.tags.length > 200 || article.tags.some(tag => typeof tag !== 'string' || tag.length > 1000)) ||
+      if (result.articles.some(article => article.tags !== undefined && (!Array.isArray(article.tags) || article.tags.some(tag => typeof tag !== 'string' || tag.length > 1000)) ||
           article.remark !== undefined && (typeof article.remark !== 'string' || article.remark.length > 128002))) {
         throw new SafeError('Invalid capture metadata snapshot; local edits were preserved.');
       }
-      if (result.captureMetadata !== undefined && (!result.captureMetadata || !Array.isArray(result.captureMetadata.tagOptions) || result.captureMetadata.tagOptions.length > 200 ||
+      if (result.captureMetadata !== undefined && (!result.captureMetadata || !Array.isArray(result.captureMetadata.tagOptions) ||
           result.captureMetadata.tagOptions.some(tag => typeof tag !== 'string' || tag.length > 50))) throw new SafeError('Invalid capture tag options.');
       if (result.metadataBindings !== undefined && (!Array.isArray(result.metadataBindings) || result.metadataBindings.length > 5000 ||
           result.metadataBindings.some(binding => typeof binding?.id !== 'string' || typeof binding.editId !== 'string' || binding.editId.length !== 36))) {

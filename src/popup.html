@@ -18,19 +18,21 @@
     <p class="field-hint" data-i18n="welcomeHelp">设置页提供可复制给 agent 的配置任务。ReadFlow 本身不提供 AI 对话。</p>
   </section>
   <section id="capture-editor" hidden>
-  <p class="card-note" data-i18n="popupHint">收藏当前页，或打开收藏和设置。</p>
+
   <p id="capture-page-title" class="capture-page-title"></p>
   <fieldset id="capture-tags-fieldset" disabled class="capture-tags" aria-describedby="capture-tags-hint capture-status">
     <legend data-i18n="captureTags">标签（可多选）</legend>
-    <p id="capture-tags-hint" class="field-hint" data-i18n="captureTagsHint">勾选已有标签，也可添加新标签。最多 20 个，每个不超过 50 字。</p>
+    <p id="capture-tags-hint" class="field-hint" data-i18n="captureTagsHint">输入以搜索或添加标签，数量不限，每个不超过 50 字。</p>
+    <p id="capture-tag-count" role="status"></p>
     <div id="capture-tag-options" class="capture-tag-options"></div>
+    <p id="capture-more-tags" hidden class="field-hint" data-i18n="tagMore">仅展示前 6 项，输入标签名缩小范围；其他已选标签仍会保存。</p>
     <p id="capture-tags-empty" class="field-hint" data-i18n="captureTagsEmpty">暂无标签，可在下方添加第一个标签。</p>
-    <label for="capture-new-tag" data-i18n="captureNewTag">新标签</label>
+    <label for="capture-new-tag" data-i18n="captureNewTag">搜索或添加标签</label>
     <div class="capture-tag-entry"><input id="capture-new-tag" type="text" maxlength="50" autocomplete="off" aria-describedby="capture-tags-hint capture-status" /><button id="capture-add-tag" type="button" data-i18n="captureAddTag">添加</button></div>
   </fieldset>
   <label for="capture-remark" data-i18n="captureRemark">笔记</label>
   <textarea disabled id="capture-remark" rows="3" maxlength="2000" aria-describedby="capture-remark-hint capture-status"></textarea>
-  <p id="capture-remark-hint" class="field-hint" data-i18n="captureRemarkHint">为什么收藏？希望后续 AI Review 帮你解决什么？选填，最多 2000 字。</p>
+  <p id="capture-remark-hint" class="field-hint" data-i18n="captureRemarkHint">选填：为什么收藏？希望解决什么问题？</p>
   <button class="btn-primary" id="capture" data-i18n="capture">收藏当前页</button>
   </section>
   <p id="capture-status" class="card-note" role="status" aria-live="polite" aria-atomic="true"></p>

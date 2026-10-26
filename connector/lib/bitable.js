@@ -53,7 +53,7 @@ export function inspectCaptureFields(fields, required = []) {
   if (issues.length) throw new DiagnosticError('SCHEMA_INVALID', 'fields', { fields: issues });
   return { available: Object.keys(CAPTURE_FIELDS).every(name => fields.some(field => field.field_name === name)),
     tagOptions: (fields.find(field => field.field_name === '标签')?.property?.options || [])
-      .map(option => option?.name).filter(name => typeof name === 'string' && name.trim() && name.length <= 50).slice(0, 200) };
+      .map(option => option?.name).filter(name => typeof name === 'string' && name.trim() && name.length <= 50) };
 }
 
 export function checkFields(fields, expected, label, topicTableId) {

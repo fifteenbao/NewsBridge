@@ -33,7 +33,10 @@ test('icon popup offers collection and settings, and captures through the truste
   assert.equal(get('capture-editor').hidden, false);
   assert.equal(sent[0].type, 'POPUP_STATUS');
   assert.equal(get('capture-remark').value, 'Existing remark');
-  assert.equal(get('capture-tag-options').children.length, 2);
+  assert.equal(get('capture-tag-options').children.length, 1);
+  get('capture-new-tag').value = 'Research'; get('capture-new-tag').events.input();
+  assert.equal(get('capture-tag-options').children[0].children[1].textContent, 'Research');
+  get('capture-new-tag').value = ''; get('capture-new-tag').events.input();
   await get('capture').events.click(); assert.deepEqual(sent.at(-1), { type: 'CAPTURE_PAGE', expectedUrl: 'https://example.com/a', metadata: {} }); assert.match(get('capture-status').textContent, /本机收藏/);
   get('capture-new-tag').value = 'New tag'; await get('capture-add-tag').events.click();
   get('capture-remark').value = 'Question for review';

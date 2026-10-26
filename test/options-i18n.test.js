@@ -15,9 +15,7 @@ test('both interface languages cover the real page and preserve interpolation va
     assert.ok(translate('en', key)); assert.ok(translate('zh', key));
   }
   assert.equal(html.includes('Feishu Bitable link / 多维表格链接'), false);
-  assert.ok(html.indexOf('id="chatId"') > html.indexOf('id="remindersEnabled"'));
-  assert.ok(html.indexOf('id="chatId"') > html.indexOf('id="sync"'));
-  assert.doesNotMatch(html, /id="tableUrl"/);
+  assert.doesNotMatch(html, /id="(?:tableUrl|chatId|remindersEnabled|reminderTime)"/);
   assert.match(html, /id="export-csv"/);
   assert.match(html, /id="pair-status"/);
   assert.doesNotMatch(html, /id="(?:connectionAccessKey|baseToken|articleTableId|language)"/);

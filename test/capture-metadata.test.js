@@ -14,7 +14,7 @@ const capture = () => ({ id: 'capture-one', url: 'https://example.com/article', 
 
 test('metadata validates at the trust boundary, deduplicates normalized tags and preserves remark whitespace', () => {
   assert.deepEqual(normalizeCaptureMetadata({ tags: [' AI ', 'AI', '研究'], remark: 'First\nSecond' }), { tags: ['AI', '研究'], remark: 'First\nSecond' });
-  for (const value of [{ tags: 'AI' }, { tags: [''] }, { tags: ['x'.repeat(51)] }, { tags: Array(21).fill('AI') }, { tags: ['line\nbreak'] }, { remark: 'x'.repeat(2001) }, { remark: '\u0000' }, { note: 'wrong field' }, null]) assert.throws(() => normalizeCaptureMetadata(value));
+  for (const value of [{ tags: 'AI' }, { tags: [''] }, { tags: ['x'.repeat(51)] }, { tags: ['line\nbreak'] }, { remark: 'x'.repeat(2001) }, { remark: '\u0000' }, { note: 'wrong field' }, null]) assert.throws(() => normalizeCaptureMetadata(value));
   assert.throws(() => metadataUpdate({ id: 'bad', fields: { tags: ['AI'] } }));
 });
 
@@ -116,4 +116,9 @@ test('operator field setup adds only missing capture columns and is safe to run 
   assert.equal((await adapter.ensureCaptureFields()).created, 0);
   fields.find(field => field.field_name === '标签').type = 3;
   await assert.rejects(adapter.ensureCaptureFields(), /SCHEMA_INVALID/); assert.equal(writes.length, 2);
+});
+
+test('tag counts are unrestricted while individual values remain validated', () => {
+  const tags = Array.from({ length: 250 }, (_, i) => 'Tag ' + i);
+  assert.deepEqual(normalizeCaptureMetadata({ tags }).tags, tags);
 });

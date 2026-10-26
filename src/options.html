@@ -15,7 +15,7 @@
           <a id="nav-settings" href="#settings" data-i18n="settings">设置</a>
         </nav>
         <div class="header-language"><label for="ui-language" data-i18n="interfaceLanguage">界面语言</label><select id="ui-language" aria-describedby="ui-language-hint"><option value="en">English</option><option value="zh">简体中文</option></select></div>
-        <p id="ui-language-hint" class="field-hint" data-i18n="interfaceHint">界面立即切换；保存设置后，提醒消息也使用此语言。</p>
+        <p id="ui-language-hint" class="field-hint" data-i18n="interfaceHint">界面语言立即生效。</p>
       </header>
       <section id="reading-list" hidden>
         <div class="section-head"><h1 class="display-h" data-i18n="collection">收藏</h1><span class="count" id="list-count"></span></div>
@@ -28,16 +28,16 @@
           <button id="filter-skip" type="button" aria-pressed="false"></button>
         </nav>
         <div class="card list-card"><ul class="list dash-list" id="list"></ul></div>
-        <p id="list-status" class="card-note" role="alert"></p>
+        <p id="list-status" class="notice" role="alert"></p>
       </section>
       <section id="settings" hidden>
         <div class="section-head"><h1 class="display-h" data-i18n="settings">设置</h1></div>
         <section class="card setup-guide" id="setup-guide" hidden>
           <h2 data-i18n="setupTitle">第一步：准备你的资料库</h2>
           <p class="card-note" data-i18n="setupExplanation">还没有服务地址？点击下方按钮，将任务交给你自己的 AI 助手（agent）配置。已有地址可直接填写下一栏。</p>
-          <ol class="setup-steps"><li data-i18n="setupStep1">复制配置任务，连同 ReadFlow 项目目录交给自己的 AI 助手。</li><li data-i18n="setupStep2">获得服务地址后，填写下方输入框。</li><li data-i18n="setupStep3">点击“配对并检查”，请配置者核对指纹并批准，再次检查。</li><li data-i18n="setupStep4">检查成功后保存设置，即可回到文章页收藏。</li></ol>
+          <ol class="setup-steps"><li data-i18n="setupStep1">复制配置任务，连同 ReadFlow 项目目录交给自己的 AI 助手。</li><li data-i18n="setupStep2">获得服务地址后，填写下方输入框。</li><li data-i18n="setupStep3">Step 2 连接服务器，复制指纹确认任务给 agent。</li><li data-i18n="setupStep4">agent 批准后，点击 Step 3 完成连接，即可开始收藏。</li></ol>
           <button id="copy-agent-task" type="button" class="save-btn" data-i18n="copyAgentTask">复制配置任务</button>
-          <p id="copy-agent-status" role="status" class="card-note"></p>
+          <p id="copy-agent-status" role="status" class="notice"></p>
           <p id="agent-task-help" class="field-hint" data-i18n="agentTaskHelp">复制到你自己的 agent 会话，并提供 ReadFlow 项目目录。插件不会自动发送消息；不要在这里填写 App Secret 或令牌。</p>
           <details class="task-preview" id="task-preview"><summary data-i18n="taskPreview">查看任务内容</summary>
             <label for="agent-task" class="field-label" data-i18n="agentTaskLabel">给 agent 的配置任务</label>
@@ -45,54 +45,36 @@
           </details>
         </section>
         <section class="card">
-          <h2 data-i18n="connection">ReadFlow 资料库</h2>
-          <p class="card-note" data-i18n="connectionHint">与数据库服务配对、检查连接，然后保存设置。</p>
-          <div class="field field-wide"><div><label class="field-label" for="connectionUrl" data-i18n="connectionUrl">连接服务地址</label><p id="endpoint-hint" class="field-hint" data-i18n="endpointHint">由 AI 助手或配置者提供的完整 HTTPS 地址，不是飞书表格链接。请保留地址中的子路径。</p></div><div class="field-control"><input id="connectionUrl" type="url" autocomplete="off" spellcheck="false" aria-describedby="endpoint-hint endpoint-error" placeholder="https://connection.example.com/readflow/" /><p id="endpoint-error" role="status" aria-live="polite"></p></div></div>
-          <div class="pairing-guide"><p id="pair-help" class="card-note" data-i18n="pairHint">无需填写密钥。首次连接需配置者批准，确认后再次检查并保存。</p><p id="pair-status" class="card-note" role="status" aria-live="polite"></p><code id="pair-fingerprint"></code><pre id="pair-command"></pre></div>
-          <div class="options-foot"><button class="save-btn" id="check-connection" data-i18n="check">配对并检查 / 重试</button><button class="secondary-btn" id="save" data-i18n="save">保存设置</button><span class="saved-note" id="saved-note" role="status" data-i18n="saved">已保存</span></div>
+          <h2 data-i18n="connection">Step 2 · 连接服务器</h2>
+          <p class="card-note" data-i18n="connectionHint">填写服务地址获取指纹，再让 agent 核对并批准。</p>
+          <div class="field field-wide"><div><label class="field-label" for="connectionUrl" data-i18n="connectionUrl">连接服务地址</label><p id="endpoint-hint" class="field-hint" data-i18n="endpointHint">由 AI 助手或配置者提供的完整 HTTPS 地址，不是飞书表格链接。请保留地址中的子路径。</p></div><div class="field-control"><input id="connectionUrl" type="url" autocomplete="off" spellcheck="false" aria-describedby="endpoint-hint endpoint-error" placeholder="https://connection.example.com/readflow/" /><p id="endpoint-error" role="status" aria-live="polite" class="notice"></p></div></div>
+          <div class="options-foot"><button class="save-btn" id="check-connection" data-i18n="check">连接服务器，获取指纹</button></div>
+          <div class="pairing-guide"><h2 data-i18n="pairStep">Step 3 · 确认授权并完成连接</h2><p id="pair-help" class="card-note" data-i18n="pairHint">无需手填密钥。复制确认任务给 agent；核对完整指纹并批准后，再完成连接。</p><p id="pair-status" class="notice" role="status" aria-live="polite"></p><div id="pair-details" hidden><p class="field-hint" data-i18n="fingerprintHelp">复制给配置服务器的 agent，核对完整指纹后批准本浏览器。指纹不是密钥。</p><code id="pair-fingerprint"></code><button id="copy-pair-task" type="button" class="save-btn" data-i18n="copyPairTask">复制确认任务</button><p id="copy-pair-status" class="notice" role="status"></p><details id="pair-task-preview"><summary data-i18n="taskPreview">查看任务内容</summary><textarea id="pair-task" rows="7" readonly aria-label="配对确认任务"></textarea></details></div></div>
+          <div class="options-foot"><button class="save-btn" id="save" disabled data-i18n="save">已获批准，完成连接</button><span class="saved-note" id="saved-note" role="status" data-i18n="saved">已保存</span></div>
 
-          <p class="card-note" id="auth-status" role="status" aria-live="polite"></p>
+          <p class="notice" id="auth-status" role="status" aria-live="polite"></p>
         </section>
         <details class="advanced-settings card" id="advanced-settings">
-          <summary data-i18n="advancedSettings">高级设置 · 提醒、导出与连接管理</summary>
-          <p class="card-note" data-i18n="advancedHint">首次连接无需填写。连接成功后按需使用；修改提醒后请点击上方“保存设置”。</p>
+          <summary data-i18n="advancedSettings">高级设置 · 导出与连接管理</summary>
+          <p class="card-note" data-i18n="advancedHint">首次连接无需填写，连接成功后按需使用。</p>
           <h2 data-i18n="syncHeading">更新本机与资料库</h2>
           <p class="card-note" data-i18n="syncExplanation">收藏时会自动尝试同步。断网恢复后，或列表、阅读状态不是最新时，可手动更新：上传本机待同步收藏，再获取数据库的最新资料与状态。不会导出到飞书。</p>
           <div class="options-foot"><button class="secondary-btn" id="sync" disabled aria-describedby="sync-help" data-i18n="sync">立即更新</button></div>
           <p class="card-note" id="sync-help"></p>
-          <p class="card-note" id="sync-status" role="status" aria-live="polite"></p>
+          <p class="notice" id="sync-status" role="status" aria-live="polite"></p>
           <div class="disconnect-section">
             <h2 data-i18n="disconnectHeading">更换资料库</h2>
             <button type="button" class="secondary-btn" id="disconnect" aria-describedby="disconnect-hint" data-i18n="disconnect">断开当前资料库</button>
-            <p id="disconnect-hint" class="field-hint" data-i18n="disconnectHint">仅在更换服务地址或资料库时使用。当前列表归档在本机，重连同一资料库可恢复；数据库不会删除，服务端提醒和配对授权不会撤销。</p>
+            <p id="disconnect-hint" class="field-hint" data-i18n="disconnectHint">仅在更换服务地址或资料库时使用。当前列表归档在本机，重连同一资料库可恢复；数据库不会删除，配对授权不会撤销。</p>
           </div>
-          <details class="reminder-details" id="reminder-details"><summary data-i18n="optionalReminders">可选设置 · 每日阅读提醒</summary>
-          <p class="card-note" data-i18n="reminderExplanation">可选的飞书消息由服务端调度，读取数据库而非导出表格。送达不代表已读。</p>
-          <div class="field field-toggle">
-            <div><label class="field-label" for="remindersEnabled" data-i18n="reminders">每日未读提醒</label><p id="reminder-help" class="field-hint" data-i18n="reminderHint">可选功能。先配置连接端调度器；修改开关后需保存设置。</p></div>
-            <div class="field-control"><input type="checkbox" id="remindersEnabled" disabled aria-describedby="reminder-help schedule-note" /></div>
-          </div>
-          <div class="field"><label class="field-label" for="reminderTime" data-i18n="reminderTime">每日提醒时间</label><div class="field-control"><input id="reminderTime" type="time" value="10:00" aria-describedby="schedule-note" /></div></div>
-          <div class="field"><label class="field-label" for="timeZone" data-i18n="timeZone">时区（IANA）</label><div class="field-control"><input id="timeZone" type="text" value="Asia/Shanghai" aria-describedby="schedule-note" /></div></div>
-          <div class="field field-wide">
-            <div><label class="field-label" for="chatId" data-i18n="chatId">提醒会话 ID</label><p class="field-hint" id="chat-id-hint" data-i18n="chatHint">仅飞书阅读消息需要，由服务端配置；数据库收藏和 CSV 下载不需要。</p></div>
-            <div class="field-control"><input type="text" id="chatId" data-i18n-placeholder="chatPlaceholder" placeholder="可选：需要提醒时在连接端配置" aria-describedby="chat-id-hint" autocomplete="off" readonly /></div>
-          </div>
-          <p class="card-note" id="schedule-note"></p><p id="preferences-status" class="card-note" role="status"></p></details>
+
         <section class="export-card">
           <h2 data-i18n="exportHeading">导出资料库</h2>
           <p class="card-note" data-i18n="exportHint">下载数据库中的全部素材，包含标题、链接、阅读状态、时间、标签和笔记。先同步本机待发送收藏，再生成 CSV；它不是完整数据库备份。</p>
           <div class="options-foot"><button id="export-csv" class="secondary-btn" disabled data-i18n="exportCsv">下载 CSV</button></div>
-          <p id="export-status" class="card-note" role="status"></p>
+          <p id="export-status" class="notice" role="status"></p>
         </section>
-        <details class="advanced-settings" id="delivery-details" hidden><summary data-i18n="advancedDiagnostics">高级 · 消息送达排查</summary>
-        <section class="card" id="pending-card" hidden>
-          <h2 data-i18n="pendingHeading">核对未确认的消息</h2>
-          <p class="card-note" id="pending-note"></p>
-          <p class="card-note" data-i18n="pendingHint">请先核实飞书会话中的消息，再处理送达结果。此项供高级排查使用。</p>
-          <div class="options-foot"><button class="save-btn" id="confirm-sent" data-i18n="confirmSent">已核实：消息已送达</button><button class="save-btn" id="confirm-not-sent" data-i18n="confirmNotSent">已核实：消息未送达</button></div>
-        </section>
-        </details>
+
         <p id="connection-meta" class="card-note"></p>
         </details>
       </section>

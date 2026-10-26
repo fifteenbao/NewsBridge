@@ -64,21 +64,14 @@ test('database refuses unsafe filesystem permissions', async t => {
   await assert.rejects(openLibrary(dir), /private/);
 });
 
-test('daily reminders use database preferences and persist actionable-card receipts without table calls', async t => {
+test('retired reminders cannot send even with old enabled configuration and preferences', async t => {
   const { library, persistence } = await fixture(t);
-  const sends = []; const now = Date.UTC(2026, 9, 22, 2, 1);
-  const feishu = { send: async (chat, type, content, uuid) => { sends.push({ chat, type, content, uuid }); return { code: 0, data: { message_id: 'om_card1' } }; } };
-  const connector = createDatabaseConnector({ library, config: { remindersEnabled: true, interactive: true, chatId: 'oc_test' }, feishu, store: library.store, exclusive: persistence.exclusive, now: () => now });
-  await connector.dispatch('sync', { items: [item()] });
-  assert.equal((await connector.daily()).skipped, true); // Available is not enabled.
-  await connector.dispatch('preferences', { language: 'zh', remindersEnabled: true });
-  assert.equal((await connector.daily()).deliveries, 1); assert.equal(sends[0].type, 'interactive');
-  assert.equal(sends[0].content.elements[1].actions[2].value.action, 'later');
-  const state = await library.store.load(), scope = Object.values(state.scopes)[0];
-  assert.deepEqual(scope.cards.om_card1.recordIds, [library.list()[0].recordId]);
-  assert.equal(scope.cards.om_card1.requestId, sends[0].uuid);
-  await connector.daily(); assert.equal(sends.length, 1);
-  assert.equal(library.list()[0].read, false);
+  const state = await library.store.load(); state.preferences = { remindersEnabled: true }; await library.store.save(state);
+  const connector = createDatabaseConnector({ library, config: { remindersEnabled: true, chatId: 'oc_test' }, feishu: { send: () => assert.fail('removed reminders must not send') }, store: library.store, exclusive: persistence.exclusive });
+  assert.equal((await connector.daily()).skipped, true);
+  assert.equal((await connector.dispatch('health')).configuration.remindersAvailable, false);
+  assert.equal((await connector.dispatch('health')).configuration.remindersEnabled, false);
+  await assert.rejects(connector.dispatch('preferences', { language: 'zh', remindersEnabled: true }), /unavailable/);
 });
 
 test('legacy note and remark consolidate once without discarding distinct text or old content', async t => {

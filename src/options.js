@@ -3,7 +3,6 @@ import { isUnread, readingStatus } from './lib/reading-state.js';
 import { initialRoute, ROUTES } from './lib/navigation.js';
 import { chooseLanguage, translate, localizeError } from './lib/options-i18n.js';
 import { endpointValue, requestEndpointPermission } from './lib/endpoint.js';
-import { validateSchedule } from './lib/reminder-schedule.js';
 import { isSafeArticleUrl } from './lib/security.js';
 let uiLanguage = 'zh', pairingView = null;
 const t = (key, values) => translate(uiLanguage, key, values);
@@ -118,7 +117,7 @@ function renderItem(item, index) {
   const linked = isSafeArticleUrl(item.url);
   const title = document.createElement(linked ? "a" : "span");
   title.className = "item-title";
-  title.textContent = item.title;
+  title.textContent = item.title?.trim() || item.url || t('untitled');
   if (linked) title.href = item.url;
   if (linked) { title.target = "_blank"; title.rel = "noreferrer"; }
 
@@ -176,8 +175,8 @@ async function mutate(message) {
   if (!result?.ok) throw new Error(result?.error || t('genericFailure'));
   return result;
 }
-let connection = null, pairingState = { approved: false }, validationSequence = 0, preferencesDirty = false, checkingConnection = false;
-let pending = null, authError = null, pendingError = null, tableLinkError = null;
+let connection = null, pairingState = { approved: false }, validationSequence = 0, checkingConnection = false;
+let authError = null;
 const element = id => document.getElementById(id);
 let currentRoute = 'settings';
 let configuredLibrary = false, busyAction = null;
@@ -197,9 +196,6 @@ async function renderHome() {
 }
 function fillSettings(settings) {
   element('connectionUrl').value = settings.connectionUrl ?? '';
-  element('reminderTime').value = settings.reminderTime || '10:00';
-  element('timeZone').value = settings.timeZone || 'Asia/Shanghai';
-  element('remindersEnabled').checked = settings.remindersEnabled === true;
 }
 function updateSyncButton() {
   const endpoint = addressFeedback();
@@ -214,7 +210,10 @@ function renderPairingStatus() {
   const pair = pairingView || (visibleEndpoint === pairingState.baseUrl ? pairingState : { status: 'unpaired' });
   element('pair-status').textContent = t(pair.approved || pair.status === 'approved' ? 'pairApproved' : pair.status === 'pending' ? 'pairPending' : 'pairUnpaired');
   element('pair-fingerprint').textContent = pair.fingerprint ? t('pairFingerprint', { fingerprint: pair.fingerprint }) : '';
-  element('pair-command').textContent = pair.status === 'pending' ? `node examples/run.mjs pair-approve private/host.json --pair-id ${pair.pairId} --fingerprint ${pair.fingerprint}` : '';
+  element('pair-details').hidden = !pair.fingerprint;
+  element('copy-pair-task').disabled = !pair.fingerprint || !!busyAction;
+  element('save').disabled = !pair.fingerprint && !pair.approved || !!busyAction;
+  element('pair-task').value = pair.fingerprint ? t('pairTask', { endpoint: visibleEndpoint, extensionId: chrome.runtime.id || '', pairId: pair.pairId, fingerprint: pair.fingerprint }) : '';
 }
 async function refreshPairingStatus() {
   const pair = await mutate({ type: 'PAIR_STATUS' });
@@ -229,44 +228,21 @@ function collectSettings() {
   const connectionUrl = addressFeedback();
   if (connectionUrl === null) { element('connectionUrl').focus(); throw new Error(element('endpoint-error').textContent); }
 
-  for (const id of ['reminderTime', 'timeZone']) element(id).removeAttribute('aria-invalid');
-  try { validateSchedule(element('reminderTime').value, element('timeZone').value); } catch (error) {
-    for (const id of ['reminderTime', 'timeZone']) element(id).setAttribute('aria-invalid', 'true');
-    element('schedule-note').textContent = errorText(error); element('advanced-settings').open = true; element('reminder-details').open = true; element('reminderTime').focus(); throw error;
-  }
-  return { connectionUrl, provider: 'database', reminderTime: element('reminderTime').value, timeZone: element('timeZone').value, language: uiLanguage,
-    ...(!element('remindersEnabled').disabled ? { remindersEnabled: element('remindersEnabled').checked } : {}) };
+  return { connectionUrl, provider: 'database', language: uiLanguage };
 }
 async function showSyncStatus() {
   const { knowledgeSync } = await chrome.storage.local.get('knowledgeSync');
   element('sync-status').textContent = knowledgeSync?.error ? errorText(knowledgeSync.error) : '';
 }
-function renderPending() {
-  element('delivery-details').hidden = !connection?.connected || (!pending && !pendingError);
-  element('pending-card').hidden = !connection?.connected || !pending;
-  if (pending) element('pending-note').textContent = t('pendingNote', { count: pending.recordIds.length,
-    time: new Date(pending.createdAt).toLocaleString(locale()), reference: pending.id });
-}
 function renderConnection(status) {
   connection = status;
   element('setup-guide').hidden = configuredLibrary;
   element('pair-help').hidden = configuredLibrary;
-  element('preferences-status').textContent = preferencesDirty ? t('settingsUnsaved') : '';
+  element('auth-status').setAttribute('data-state', authError ? 'error' : status?.connected ? 'success' : 'info');
   element('auth-status').textContent = authError ? errorText(authError) : t(checkingConnection ? 'checking' : pairingView?.status === 'pending' ? 'pairWaiting' : status?.connected ? configuredLibrary ? 'connected' : 'connectedUnsaved' : configuredLibrary ? 'configuredOffline' : 'disconnected');
-  if (pendingError) element('auth-status').textContent += t('pendingFailed', { error: errorText(pendingError) });
-  const config = status?.configuration;
-  // The chat belongs to reminder configuration, not to the pasted table URL.
-  element('chatId').value = status?.connected ? config?.chatId || '' : '';
-  element('remindersEnabled').disabled = !status?.connected || config?.remindersAvailable !== true;
-  if (!preferencesDirty) {
-    if (config?.reminderTime) element('reminderTime').value = config.reminderTime;
-    if (config?.timeZone) element('timeZone').value = config.timeZone;
-    element('remindersEnabled').checked = config?.remindersEnabled === true;
-  }
   element('disconnect').disabled = !configuredLibrary || !!busyAction;
-  element('schedule-note').textContent = config?.remindersAvailable ? t('schedule', { state: t(config.remindersEnabled ? 'on' : 'off'), zone: config.timeZone, time: config.reminderTime || '10:00' }) : t('scheduleUnavailable');
   element('connection-meta').textContent = t('footer', { server: pairingState.baseUrl || t('offline'), version: chrome.runtime.getManifest().version, extensionId: chrome.runtime.id || t('unverified'), protocol: status?.protocolVersion || t('unverified') });
-  updateSyncButton(); renderPending();
+  updateSyncButton();
   renderHome().catch(() => { element('home-status').textContent = t('genericFailure'); });
 }
 function translatePage() {
@@ -279,7 +255,7 @@ function translatePage() {
 }
 async function showConnection({ verifyOnly = false, authorize = false } = {}) {
   const sequence = ++validationSequence;
-  authError = null; pendingError = null; tableLinkError = null; checkingConnection = true;
+  authError = null; checkingConnection = true;
   element('auth-status').textContent = t('checking');
   updateSyncButton();
   try {
@@ -290,27 +266,18 @@ async function showConnection({ verifyOnly = false, authorize = false } = {}) {
       const pair = await mutate({ type: 'PAIR_REQUEST', connectionUrl });
       if (sequence !== validationSequence) return;
       pairingView = pair; renderPairingStatus();
-      if (pair.status !== 'approved') { checkingConnection = false; renderConnection(null); return; }
+      if (pair.status !== 'approved') { checkingConnection = false; renderConnection(null); throw new Error(t('pairWaiting')); }
     }
     const linkPayload = {};
     const status = await mutate(verifyOnly ? { type: 'VALIDATE_CONNECTION', provider: 'database', connectionUrl, ...linkPayload } : { type: 'CONNECTION_STATUS', provider: 'database', connectionUrl, ...linkPayload });
     if (sequence !== validationSequence) return;
     checkingConnection = false; renderConnection(status);
     renderPairingStatus();
-    pending = null; element('pending-card').hidden = true;
-    if (status.connected) {
-      try {
-        const result = await mutate({ type: 'PENDING' });
-        if (sequence !== validationSequence) return;
-        pending = result.pending;
-        element('pending-card').hidden = !connection?.connected || !pending;
-        renderPending();
-      } catch (error) { if (sequence === validationSequence) { pendingError = error.message; renderConnection(status); } }
-    }
+
   } catch (error) {
     if (sequence !== validationSequence) return;
     checkingConnection = false; authError = error.message;
-    if (error.message.includes('PAIR_REQUIRED')) { pairingView = { status: 'unpaired' }; pairingState.approved = false; }
+    if (error.message.includes('PAIR_REQUIRED')) pairingState.approved = false;
     renderConnection(null); renderPairingStatus();
     throw error;
   }
@@ -320,21 +287,21 @@ function bindAction(id, action) {
   button.addEventListener('click', async () => {
     if (busyAction) return;
     busyAction = id;
-    const controls = ['save', 'check-connection', 'disconnect', 'sync', 'export-csv', 'confirm-sent', 'confirm-not-sent'];
+    const controls = ['save', 'check-connection', 'copy-pair-task', 'connectionUrl', 'disconnect', 'sync', 'export-csv'];
     const previous = controls.map(name => [name, element(name).disabled]);
     for (const name of controls) element(name).disabled = true;
     const feedback = id === 'sync' ? 'sync-status' : id.startsWith('export-') ? 'export-status' : 'auth-status';
-    element(feedback).textContent = '';
+    element(feedback).textContent = ''; element(feedback).removeAttribute('data-state');
     button.disabled = true;
     button.setAttribute('aria-busy', 'true');
     updateSyncButton();
     try { await action(); }
-    catch (error) { element(feedback).textContent = errorText(error); }
+    catch (error) { element(feedback).textContent = errorText(error); element(feedback).setAttribute('data-state', 'error'); }
     finally {
       busyAction = null;
       for (const [name, disabled] of previous) element(name).disabled = disabled;
       element('disconnect').disabled = !configuredLibrary;
-      button.removeAttribute('aria-busy'); updateSyncButton();
+      button.removeAttribute('aria-busy'); updateSyncButton(); renderPairingStatus();
     }
   });
 }
@@ -363,32 +330,38 @@ async function init() {
     try { await navigator.clipboard.writeText(element('agent-task').value); element('copy-agent-status').textContent = t('taskCopied'); }
     catch { element('task-preview').open = true; element('agent-task').focus(); element('agent-task').select(); element('copy-agent-status').textContent = t('taskCopyFallback'); }
   });
+  element('copy-pair-task').addEventListener('click', async () => {
+    if (!element('pair-task').value) return;
+    try { await navigator.clipboard.writeText(element('pair-task').value); element('copy-pair-status').textContent = t('taskCopied'); }
+    catch { element('pair-task-preview').open = true; element('pair-task').focus(); element('pair-task').select(); element('copy-pair-status').textContent = t('taskCopyFallback'); }
+  });
   await refreshPairingStatus();
   const savedLibrary = await chrome.storage.local.get(['collectionIdentity', 'connectionEndpoint']);
   configuredLibrary = !!(savedLibrary.collectionIdentity && savedLibrary.connectionEndpoint) || pairingState.approved && !!pairingState.baseUrl;
   renderConnection(null);
-  element('connectionUrl').addEventListener('input', () => { validationSequence++; checkingConnection = false; pending = null; connection = null; pairingView = null; authError = null; renderConnection(null); renderPairingStatus(); addressFeedback(); });
+  element('connectionUrl').addEventListener('input', () => { validationSequence++; checkingConnection = false; connection = null; pairingView = null; authError = null; renderConnection(null); renderPairingStatus(); addressFeedback(); });
   element('ui-language').addEventListener('change', async () => {
-    uiLanguage = chooseLanguage(element('ui-language').value); preferencesDirty = true;
+    uiLanguage = chooseLanguage(element('ui-language').value);
     await chrome.storage.local.set({ uiLanguage });
     translatePage(); renderPairingStatus(); renderConnection(connection);
     await renderList(); await renderHome(); await showSyncStatus();
   });
-  for (const id of ['reminderTime', 'timeZone']) element(id).addEventListener('change', () => { preferencesDirty = true; element('preferences-status').textContent = t('settingsUnsaved'); });
   bindAction('disconnect', async () => {
     if (!globalThis.confirm(t('disconnectConfirm'))) return;
-    validationSequence++; checkingConnection = false; tableLinkError = null; pendingError = null;
-    try { await mutate({ type: 'DISCONNECT' }); configuredLibrary = false; connection = null; pending = null; preferencesDirty = false; authError = null;
+    validationSequence++; checkingConnection = false;
+    try { await mutate({ type: 'DISCONNECT' }); configuredLibrary = false; connection = null; authError = null;
       fillSettings({ language: uiLanguage }); await refreshPairingStatus(); renderConnection(null); await renderList(); applyRoute('settings');
     } catch (error) { element('auth-status').textContent = errorText(error); }
   });
-  element('remindersEnabled').addEventListener('change', () => { preferencesDirty = true; element('preferences-status').textContent = t('settingsUnsaved'); });
   bindAction('save', async () => {
-    const settings = collectSettings(), sequence = validationSequence;
+    const settings = collectSettings();
+    await showConnection({ verifyOnly: true, authorize: true });
+    if (!connection?.connected) return;
+    const sequence = validationSequence;
     if (!await requestEndpointPermission(settings.connectionUrl)) throw new Error(t('permissionDenied'));
     if (sequence !== validationSequence) throw new Error('Connection settings changed during the request. Retry.');
     const result = await mutate({ type: 'SAVE_SETTINGS', settings });
-    configuredLibrary = true; preferencesDirty = false; fillSettings(result.settings);
+    configuredLibrary = true; fillSettings(result.settings);
     await refreshPairingStatus();
     flashSaved(); await showConnection(); await renderList();
   });
@@ -407,17 +380,23 @@ async function init() {
     } catch (error) { element('export-status').textContent = errorText(error); }
   }
   bindAction('export-csv', exportLibrary);
-  bindAction('check-connection', () => showConnection({ verifyOnly: true, authorize: true }));
+  bindAction('check-connection', async () => {
+    const connectionUrl = addressFeedback();
+    if (!connectionUrl) return;
+    const sequence = ++validationSequence;
+    if (!await requestEndpointPermission(connectionUrl)) throw new Error(t('permissionDenied'));
+    const pair = await mutate({ type: 'PAIR_REQUEST', connectionUrl });
+    if (sequence !== validationSequence) return;
+    pairingView = pair; authError = null; renderPairingStatus(); renderConnection(null);
+    element('auth-status').textContent = t(pair.status === 'approved' ? 'pairReady' : 'pairWaiting');
+  });
   bindAction('sync', async () => {
     element('sync-status').textContent = t('syncWorking');
     await mutate({ type: 'SYNC' });
     await renderList(); await renderHome();
     element('sync-status').textContent = t('syncDone');
   });
-  for (const [id, outcome] of [['confirm-sent', 'sent'], ['confirm-not-sent', 'not-sent']]) {
-    bindAction(id, async () => { await mutate({ type: 'RESOLVE_PENDING', uuid: pending?.id, outcome }); await showConnection(); });
-  }
-  try { await showConnection(); } catch { /* showConnection renders the failure. */ }
+  if (pairingState.approved) { try { await showConnection(); } catch { /* failure is shown next to the action */ } }
 
   const configured = connection?.connected && pairingState.approved && !element('sync').disabled;
   applyRoute(initialRoute(location.hash, configured));

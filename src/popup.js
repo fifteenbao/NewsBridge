@@ -18,29 +18,35 @@ let context, initial = { tags: [], remark: '' };
 button.disabled = true;
 function renderTags() {
   const list = element('capture-tag-options'); list.replaceChildren();
-  element('capture-tags-empty').hidden = options.size > 0;
-  for (const name of options) {
+  const query = element('capture-new-tag').value.trim().normalize('NFC').toLowerCase();
+  const matches = query ? [...options].filter(name => name.toLowerCase().includes(query)) : [...selectedTags];
+  element('capture-tag-count').textContent = t('tagCount', { count: selectedTags.size });
+  element('capture-tags-empty').hidden = matches.length > 0;
+  element('capture-tags-empty').textContent = t(query ? 'tagNoMatch' : 'tagSearchHint');
+  element('capture-more-tags').hidden = matches.length <= 6;
+  for (const name of matches.slice(0, 6)) {
     const label = document.createElement('label'), checkbox = document.createElement('input');
     checkbox.type = 'checkbox'; checkbox.checked = selectedTags.has(name);
     checkbox.addEventListener('change', () => {
-      if (checkbox.checked && selectedTags.size >= 20) { checkbox.checked = false; status.textContent = t('captureTagLimit'); return; }
       if (checkbox.checked) selectedTags.add(name); else selectedTags.delete(name);
-      status.textContent = '';
+      element('capture-new-tag').value = ''; status.textContent = ''; renderTags();
     });
     const text = document.createElement('span'); text.textContent = name;
     label.append(checkbox, text); list.append(label);
   }
 }
+
 function addTag() {
   const input = element('capture-new-tag'), value = input.value.trim().normalize('NFC');
   input.removeAttribute('aria-invalid');
   if (!value) return true;
-  if (value.length > 50 || /[\u0000-\u001f\u007f]/.test(value) || !selectedTags.has(value) && selectedTags.size >= 20) {
+  if (value.length > 50 || /[\u0000-\u001f\u007f]/.test(value)) {
     input.setAttribute('aria-invalid', 'true'); status.textContent = t('captureTagLimit'); return false;
   }
   selectedTags.add(value); options.add(value); input.value = ''; renderTags();
   status.textContent = t('captureTagAdded', { tag: value }); return true;
 }
+element('capture-new-tag').addEventListener('input', renderTags);
 element('capture-add-tag').addEventListener('click', addTag);
 element('capture-new-tag').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addTag(); } });
 element('popup-language').value = language;
@@ -82,7 +88,8 @@ try {
   status.textContent = localizeError(error, language);
 }
 button.addEventListener('click', async () => {
-  if (saving || !context || !addTag()) return;
+  if (saving || !context) return;
+  if (element('capture-new-tag').value.trim()) { status.textContent = t('tagPending'); element('capture-new-tag').focus(); return; }
   const tags = [...selectedTags], remark = element('capture-remark').value;
   if (remark !== initial.remark && remark.length > 2000) { element('capture-remark').setAttribute('aria-invalid', 'true'); status.textContent = t('captureRemarkLimit'); return; }
   element('capture-remark').removeAttribute('aria-invalid');

@@ -4,14 +4,10 @@
   "stateDir": "./state",
   "connector": {
     "storageProvider": "database",
-    "remindersEnabled": false,
-    "timeZone": "Asia/Shanghai",
-    "language": "zh",
-    "reminderTime": "10:00"
+    "language": "zh"
   },
   "feishu": {
-    "appId": "",
-    "chatId": ""
+    "appId": ""
   },
   "feishuInbox": {
     "enabled": false,

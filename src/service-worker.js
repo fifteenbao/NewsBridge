@@ -132,7 +132,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       const item = items.find(item => item.url === tab.url && !item.feishuDeleted);
       const { knowledgeSync } = await chrome.storage.local.get('knowledgeSync');
       return { ok: true, url: tab.url, title: tab.title || tab.url, tags: item?.tags || [], remark: readingNote(item),
-        tagOptions: [...new Set([...(item?.tags || []), ...(knowledgeSync?.tagOptions || []), ...items.flatMap(item => item.tags || [])])].slice(0, 200) };
+        tagOptions: [...new Set([...(item?.tags || []), ...(knowledgeSync?.tagOptions || []), ...items.flatMap(item => item.tags || [])])] };
     }
     if (['SET_READ', 'SET_STATUS', 'DELETE_ITEM'].includes(message.type) && (typeof message.id !== 'string' || message.id.length > 512)) throw new SafeError('Invalid item ID.');
     if (message.type === 'DISCONNECT') return disconnectCollection();

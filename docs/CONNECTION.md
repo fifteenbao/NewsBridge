@@ -17,7 +17,7 @@ Chrome 仅授权该 origin。服务端登记精确扩展 ID；移动安装目录
 | `v1/health` | `{provider:"database"}` | 检查数据库及可选配置，不调用飞书 |
 | `v1/sync` | `{items:[...]}` | 上传待同步收藏，返回完整主库快照，不写表格 |
 | `v1/read` | `{base,recordId,status}` | 数据库设为待阅读／已读／跳过 |
-| `v1/preferences` | `{language,reminderTime,timeZone,remindersEnabled}` | 保存偏好，不安装调度器 |
+| `v1/preferences` | `{language}` | 保存偏好，不安装调度器 |
 | `v1/csv` | `{}` | 返回数据库 `{csv,filename,count}` |
 | `v1/pending` | `{}` | 查看送达不确定的提醒 |
 | `v1/resolve` | `{uuid,outcome}` | 核实会话后确认 sent／not-sent |
@@ -27,9 +27,9 @@ Chrome 仅授权该 origin。服务端登记精确扩展 ID；移动安装目录
 
 同步返回 `enabled`、`base`、`articles`、`topics:[]`、`bindings`、`metadataBindings` 和 `captureMetadata`。文章包含 recordId、title、url、status/read、savedAt（毫秒）、readAt（毫秒或 null）、tags、remark。浏览器内部历史字段 `feishuRecordId`／`feishuBase` 现在表示数据库绑定，不是飞书行 ID 或凭证。
 
-新收藏包含本机 id、安全 HTTP(S) URL、title、ISO savedAt。标签／笔记显式修改使用 `{metadataUpdate:{id:UUID,fields:{tags,remark}}}`：省略字段不变，空值明确清除。最多 20 个标签、每个 50 字符，笔记编辑最多 2000 字符（内部字段仍为 `remark`）。重复编辑只确认、不重复应用；URL 去重和事务保证双入口共用一条记录。
+新收藏包含本机 id、安全 HTTP(S) URL、title、ISO savedAt。标签／笔记显式修改使用 `{metadataUpdate:{id:UUID,fields:{tags,remark}}}`：省略字段不变，空值明确清除。标签数量不限、每个最多 50 字符（仍受整体请求大小约束），笔记编辑最多 2000 字符（内部字段仍为 `remark`）。重复编辑只确认、不重复应用；URL 去重和事务保证双入口共用一条记录。
 
-健康检查报告 `configuration.storageProvider="database"` 及提醒可用性／偏好，不报告表格目标。数据库检查成功不代表飞书消息或外部 agent 已授权。
+健康检查报告 `configuration.storageProvider="database"` ；提醒可用性固定为 false，不报告表格目标。数据库检查成功不代表飞书消息或外部 agent 已授权。
 
 ## CSV 编码
 
@@ -37,7 +37,7 @@ CSV 使用 UTF-8 BOM、CRLF、带引号单元格及双写引号，处理公式�
 
 ## 调度与事件
 
-导入模块不启动监听或调度。既有调度器调用 `ingest`／`daily`。`events/feishu` 使用独立加密事件认证和用户／会话白名单；卡片操作验证消息／记录／请求绑定并按事件 ID 去重。详见[飞书指南](FEISHU-INBOX.md)。
+导入模块不启动监听或调度。既有调度器调用 `ingest`。`events/feishu` 使用独立加密事件认证和用户／会话白名单；卡片操作验证消息／记录／请求绑定并按事件 ID 去重。详见[飞书指南](FEISHU-INBOX.md)。
 
 诊断须结构化且不带凭证，数据库错误不得泄露 SQL 路径或秘密输入。HTTP 成功、落库、CSV 导出、消息送达和已读是不同结果。
 
@@ -50,3 +50,5 @@ ReadFlow 不提供模型调用和分析结果回写接口。后续与已有 agen
 服务器仅在状态从其他值变为“已读”时设置 readAt（服务器当前 UTC Unix 毫秒），重复点击不刷新。改成未读／跳过时当前 readAt 清空；reading_events 继续保存之前的状态变更和时间。飞书卡片按同一规则处理，重复事件不计数。旧已读记录和本机已读状态导入没有可信时间，保留未知，不补成今天；尚无阅读耗时数据。CSV 末列增加“标记已读时间”，以 ISO UTC 输出，未知为空。
 
 `v1/agent/*` 使用独立配对密钥和受限权限，不接受浏览器身份；详见 [agent 协议和 Hermes 操作](AGENT.md)。配对不等于每次保存确认，服务验证摘要和引用，由已授权 agent 负责核实用户对具体内容的确认。
+
+每日阅读提醒暂时移除。旧 preferences 请求启用 remindersEnabled 会被拒绝；旧时间配置不会重新启用发送。

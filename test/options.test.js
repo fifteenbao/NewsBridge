@@ -14,7 +14,7 @@ test('settings pair with approval, use one language selector and group provider 
   class Element {
     constructor() { this.style = {}; this.children = []; this.value = ''; this.textContent = ''; this.disabled = false; this.checked = false; this.listeners = {}; this.attrs = {}; this.classList = { add() {}, remove() {} }; }
     setAttribute(k,v) { this.attrs[k] = v; } getAttribute(k) { return this.attrs[k]; } removeAttribute(k) { delete this.attrs[k]; }
-    append(...values) { this.children.push(...values); } appendChild(value) { this.children.push(value); } replaceChildren(...values) { this.children = values; } focus() {} scrollIntoView() {}
+    append(...values) { this.children.push(...values); } appendChild(value) { this.children.push(value); } replaceChildren(...values) { this.children = values; } focus() {} select() { this.selected = true; } scrollIntoView() {}
     addEventListener(name, fn) { this.listeners[name] = fn; }
   }
   const elements = new Map();
@@ -95,8 +95,20 @@ test('settings pair with approval, use one language selector and group provider 
   assert.doesNotMatch(html, /id="export-table"/);
   await el('check-connection').listeners.click(); assert.match(el('pair-status').textContent, /等待服务端/);
   assert.match(el('auth-status').textContent, /等待配置者批准/);
-  operatorApproved = true; await el('check-connection').listeners.click();
-  assert.equal(el('chatId').value, 'oc_reminders');
+  const oldClipboard = navigator.clipboard; let copied;
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { copied = text; } } });
+  t.after(() => { if (oldClipboard) Object.defineProperty(navigator, 'clipboard', { configurable: true, value: oldClipboard }); else delete navigator.clipboard; });
+  await el('copy-pair-task').listeners.click();
+  assert.ok(copied.includes('f'.repeat(64))); assert.ok(copied.includes(local.connectionEndpoint));
+  navigator.clipboard.writeText = async () => { throw new Error('denied'); };
+  await el('copy-pair-task').listeners.click();
+  assert.equal(el('pair-task-preview').open, true); assert.equal(el('pair-task').selected, true);
+
+  await el('save').listeners.click(); assert.equal(saved, false, 'pending approval must never save');
+  assert.match(el('pair-task').value, /pair-approve.*--fingerprint/);
+  assert.ok(el('pair-task').value.includes('f'.repeat(64)));
+  operatorApproved = true;
+  assert.doesNotMatch(html, /id="(?:chatId|remindersEnabled|reminderTime|timeZone)"/);
   await el('save').listeners.click(); await drain();
   assert.equal(el('setup-guide').hidden, true);
   await el('sync').listeners.click();
@@ -107,15 +119,12 @@ test('settings pair with approval, use one language selector and group provider 
   assert.equal(document.documentElement.lang, 'zh'); assert.equal(local.uiLanguage, 'zh');
   assert.equal(calls.length, beforeLanguageChange);
   await el('save').listeners.click(); assert.equal(lastSaved.language, 'zh');
-  assert.equal(el('check-connection').textContent, '配对并检查 / 重试');
+  assert.equal(el('check-connection').textContent, '连接服务器，获取指纹');
   assert.match(el('pair-status').textContent, /已配对/);
-  assert.match(el('chatId').getAttribute('placeholder'), /需要提醒/);
-  assert.match(el('schedule-note').textContent, /连接端状态/);
   el('ui-language').value = 'en'; await el('ui-language').listeners.change();
-  assert.equal(el('check-connection').textContent, 'Pair and check / Retry');
+  assert.equal(el('check-connection').textContent, 'Connect to server · Get fingerprint');
   await el('save').listeners.click(); assert.equal(lastSaved.language, 'en');
-  el('remindersEnabled').checked = false; el('remindersEnabled').listeners.change(); await el('save').listeners.click();
-  assert.equal(lastSaved.remindersEnabled, false);
+  assert.equal(lastSaved.remindersEnabled, undefined);
   assert.ok(calls.some(c => c.type === 'VALIDATE_CONNECTION'));
   const disconnectCount = calls.filter(c => c.type === 'DISCONNECT').length;
   await el('disconnect').listeners.click();
@@ -130,10 +139,6 @@ test('settings pair with approval, use one language selector and group provider 
   assert.doesNotMatch(html, /value="google"/);
   await el('check-connection').listeners.click();
   assert.equal(calls.findLast(c => c.type === 'VALIDATE_CONNECTION').provider, 'database');
-  el('reminderTime').value = '08:45'; el('reminderTime').listeners.change(); el('timeZone').value = 'Europe/London'; el('timeZone').listeners.change();
-  await el('save').listeners.click(); assert.equal(lastSaved.provider, 'database'); assert.equal(lastSaved.reminderTime, '08:45'); assert.equal(lastSaved.timeZone, 'Europe/London');
-  assert.match(el('schedule-note').textContent, /08:45/);
-  el('reminderTime').value = '25:00'; await el('save').listeners.click(); assert.equal(el('reminderTime').attrs['aria-invalid'], 'true');
   assert.equal(el('connectionUrl').value, 'https://connection.example.com/readflow/');
   el('connectionUrl').value = 'https://other.example.com/library/'; el('connectionUrl').listeners.input();
   assert.equal(el('sync').disabled, true);
@@ -153,7 +158,7 @@ test('setup keeps the first action visible and advanced controls collapsed', asy
   assert.ok(html.indexOf('id="connectionUrl"') < advanced);
   assert.ok(html.indexOf('id="save"') < advanced);
   assert.doesNotMatch(html, /<details[^>]*id="advanced-settings"[^>]*\bopen\b/);
-  for (const id of ['sync', 'disconnect', 'remindersEnabled', 'export-csv', 'connection-meta']) {
+  for (const id of ['sync', 'disconnect', 'export-csv', 'connection-meta']) {
     assert.ok(html.indexOf(`id="${id}"`) > advanced, id);
   }
 });

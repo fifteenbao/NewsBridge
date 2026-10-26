@@ -7,7 +7,7 @@ flowchart LR
   Chrome[Chrome 收藏与待同步队列] -->|签名同步| Service[ReadFlow 服务]
   Chat[飞书私聊] -->|验证加密回调| Service
   Service <--> DB[(SQLite 资料库与运行状态)]
-  Scheduler[既有调度器] -->|ingest / daily| Service
+  Scheduler[既有调度器] -->|ingest| Service
   Service -->|收录确认与阅读邀请| Chat
   Service -->|用户手动下载| CSV[CSV 快照]
 ```
@@ -20,7 +20,7 @@ Chrome 先保存标题、链接、标签和笔记，再尝试同步。首次可�
 
 `examples/feishu-inbox.js` 校验加密、签名、Token、应用及会话／用户白名单。事件持久化入队后确认接收，由任务实际落库并发送收录结果。卡片操作还需匹配已发送消息、请求和记录绑定。
 
-既有调度器运行 `ingest` 和 `daily`；daily 先处理收录队列。发送 UUID 在发送前持久化，不确定结果仅在去重窗口内重试，超时需人工核对。送达不代表已读。
+既有调度器运行 `ingest` 处理链接队列；每日提醒暂时移除。发送 UUID 在发送前持久化，不确定结果仅在去重窗口内重试，超时需人工核对。送达不代表已读。
 
 CSV 是用户主动下载的资料快照，先同步待发送收藏，失败则停止导出。不保留多维表格同步。对话入口由用户现有 agent 提供，不限定平台；飞书仅提供当前可选收录／提醒，后续分析交给现有 agent；ReadFlow 不调用模型 API。独立 agent 配对授权查询及确认后的回顾追加；复用 HTTPS 与 SQLite，不共享 Chrome 密钥，见 [agent 接入](AGENT.md)。
 

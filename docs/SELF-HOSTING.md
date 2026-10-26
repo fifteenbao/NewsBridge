@@ -12,10 +12,8 @@
 | `extensionId` | Chrome 实际 32 位 a–p 扩展 ID，空值允许准备服务，但禁止浏览器配对 |
 | `stateDir` | 相对配置文件的私有目录，HTTP 服务和任务必须共用 |
 | `connector.storageProvider` | 固定 `database` |
-| `connector.remindersEnabled` | 服务是否具备提醒能力；调度与发消息未配置前保持 false |
-| `connector.reminderTime/timeZone/language` | 默认偏好，用户保存的设置优先 |
+| `connector.language` | 默认语言（zh / en） |
 | `feishu.appId` | 可选应用 ID，与环境变量 `FEISHU_APP_ID` 一致 |
-| `feishu.chatId` | 可选提醒目标会话 |
 | `feishuInbox` | 可选的加密收录／卡片回调，限制确切会话与发送人 |
 
 运行 `node examples/run.mjs init private/host.json` 初始化。不会重置已有数据库身份和内容。健康检查不调用飞书；启动时数据库缺失会报错，不会静默创建新主库。目录 0700、文件 0600，归服务用户所有，禁止符号链接和多重硬链接。
@@ -38,10 +36,9 @@
 
 ```sh
 node examples/run.mjs ingest private/host.json --env private/host.env
-node examples/run.mjs daily private/host.json --env private/host.env
 ```
 
-按需要定期运行 ingest（例如每分钟）；daily 也可每分钟检查，到用户设定时间才发送，并先处理收录队列。服务能力与用户开关都开启后才会提醒。不要将 daily 用作健康检查，它可能发送真实消息。
+按需要定期运行 ingest（例如每分钟）处理链接收录。每日阅读提醒暂时移除：请停用旧 daily 调度，CLI 不再提供 daily 命令，升级后的服务也不会因旧提醒配置启用而发送。
 
 ## 备份与限制
 
@@ -50,3 +47,11 @@ node examples/run.mjs daily private/host.json --env private/host.env
 参考实现面向单机，资料库最多 10,000 条；收录队列保留最多 2,000 条消息记录，达到上限会报错而不是丢弃。交互卡片绑定保留最近 1,000 条消息，更旧卡片不能继续改状态。不提供多机集群及自动清理策略。CSV 是内容导出，不是运行状态备份。
 
 仓库验证使用真实本地 SQLite 和模拟飞书 API；实际使用前仍须验证应用权限、反向代理和事件订阅。
+
+## 更新到 V0.4.2
+
+先记录当前提交及服务启动方式，检查工作区；不要覆盖服务器上未提交的修改。暂停 ReadFlow 服务和写入任务，再在私有目录备份完整 stateDir、实际配置、环境文件及已配对身份，保留原权限。不要重新初始化资料库或重新生成已有配对密钥。
+
+拉取包含 V0.4.2 的代码，核对 package.json 与 manifest.json 均为 0.4.2。运行测试、安全检查和 doctor，再使用原配置、原 uid、原 HTTPS 子路径和原进程管理方式启动。仅停用 ReadFlow 的旧 daily 定时调用，保留已配置的 ingest 链接收录任务；不要禁用其他应用或 agent 自己的任务。
+
+检查健康状态、已有收藏与 readAt、CSV、浏览器配对及 agent 签名查询。旧提醒配置不会启用发送；不要通过发送真实提醒测试此版本。失败时保留诊断，暂停新写入后按备份恢复服务代码及必要状态；已停用的 daily 任务不要因回滚自动恢复。不得丢弃更新后已产生的新资料。

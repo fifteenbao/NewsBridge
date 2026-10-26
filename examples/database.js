@@ -107,7 +107,7 @@ export async function openLibrary(stateDir, { initialize = false, now = () => Da
             put(article); bindings.push({ id: item.id, recordId: article.recordId });
           }
           const articles = list();
-          return { created, bindings, metadataBindings, articles, topics: [], captureMetadata: { available: true, tagOptions: [...new Set(articles.flatMap(a => a.tags))].slice(0, 200) } };
+          return { created, bindings, metadataBindings, articles, topics: [], captureMetadata: { available: true, tagOptions: [...new Set(articles.flatMap(a => a.tags))] } };
         });
       },
       applyAction(eventId, id, action, time = now()) {

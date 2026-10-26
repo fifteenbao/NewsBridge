@@ -40,22 +40,22 @@ node examples/serve.mjs private/host.json
 
 **保持安装文件夹固定。移动解压目录可能改变扩展 ID，需要更新服务端白名单，否则会收到 `403 ORIGIN_DENIED`。扩展 ID 不是认证密钥。**
 
-在插件设置填写 HTTPS 服务地址，点击“配对并检查”，授权该主机。服务端查看请求，核对插件页面的完整指纹和扩展 ID 后批准：
+在插件设置填写 HTTPS 服务地址，在 Step 2 点击“连接服务器，获取指纹”，授权该主机。点击“复制确认任务”，交给服务端 agent；核对完整指纹和扩展 ID 后批准：
 
 ```sh
 node examples/run.mjs pair-list private/host.json
 node examples/run.mjs pair-approve private/host.json --pair-id REQUEST_ID --fingerprint DISPLAYED_HEX
 ```
 
-插件再次检查并保存设置。无需填写飞书表格地址或密钥。先收藏一条测试链接，验证数据库同步和 CSV。拒绝、撤销与重连见[配对说明](docs/PAIRING.md)。
+收到批准回复后，在 Step 3 点击“已获批准，完成连接”，验证授权并自动保存。无需填写飞书表格地址或密钥。先收藏一条测试链接，验证数据库同步和 CSV。拒绝、撤销与重连见[配对说明](docs/PAIRING.md)。
 
 ## 4. CSV 导出
 
 设置中的“下载 CSV”先同步本机待发送收藏，再下载数据库全部素材。列为标题、链接、阅读状态、时间、标签、笔记。不需要飞书凭证、表格链接或表格权限。
 
-## 5. 可选：飞书收录与提醒
+## 5. 可选：飞书链接收录
 
-按[飞书指南](docs/FEISHU-INBOX.md) 配置。目标会话和既有调度准备好后，服务端设置 `connector.remindersEnabled=true`，用户再在插件设置启用提醒。`daily` 读取数据库；`ingest` 处理链接队列。未经用户授权不要发送测试消息或安装定时任务。
+按[飞书指南](docs/FEISHU-INBOX.md) 配置链接收录，使用 `ingest` 处理队列。每日阅读提醒暂时移除，不配置 reminderTime、remindersEnabled 或 daily 调度；已有 daily 调度请停用。未经用户授权不要发送测试消息或安装定时任务。
 
 ## 备份
 
@@ -68,7 +68,7 @@ node examples/run.mjs pair-approve private/host.json --pair-id REQUEST_ID --fing
 1. 只检查相关运行环境、HTTPS、私有存储和调度能力，不扫描无关凭证；新增平台、账号或费用前先征求同意。
 2. 按上述顺序初始化、检查、安装和配对。核对完整指纹后才批准，不通过重置数据库来掩盖错误。
 3. 在授权范围验证收藏去重、标签／笔记修改、离线重试、已读／跳过和 CSV，区分模拟测试与真实验证。
-4. 询问是否需要飞书收录和提醒，仅启用所需消息权限。分析由已有对话型 agent 承担，不部署新 agent 或模型接口。
+4. 询问是否需要飞书链接收录，仅启用所需消息权限。分析由已有对话型 agent 承担，不部署新 agent 或模型接口。
 5. 交付服务地址、固定安装目录、验证结果、备份位置和未完成事项。配置助手不等于内置 AI Review。
 
 现有对话型 agent 的调用方式需另行对接，不能仅凭会话 ID 宣称已支持自动分析。不要为 ReadFlow 配置模型密钥或多维表格权限。

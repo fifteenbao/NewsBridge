@@ -5,12 +5,12 @@ import { createFileState } from './file-state.js';
 import { openLibrary } from './database.js';
 import { SafeError, safeErrorMessage } from '../src/lib/security.js';
 import { cleanDiagnostic } from '../src/lib/diagnostics.js';
-const usage = 'Agent approval uses agent-pair-list|agent-pair-approve|agent-pair-reject|agent-pair-revoke with the same options. Usage: node examples/run.mjs init|audit|inbox-pending|inbox-resolve|ingest|check|pending|daily|pair-list|pair-approve|pair-reject|pair-revoke private/host.json [--env private/host.env] [--pair-id ID --fingerprint HEX] [--receipt-id ID --outcome sent|not-sent]';
+const usage = 'Agent approval uses agent-pair-list|agent-pair-approve|agent-pair-reject|agent-pair-revoke with the same options. Usage: node examples/run.mjs init|audit|inbox-pending|inbox-resolve|ingest|check|pending|pair-list|pair-approve|pair-reject|pair-revoke private/host.json [--env private/host.env] [--pair-id ID --fingerprint HEX] [--receipt-id ID --outcome sent|not-sent]';
 try {
   const [inputCommand, file, ...options] = process.argv.slice(2);
   const agent = inputCommand?.startsWith('agent-pair-');
   const command = agent ? inputCommand.slice(6) : inputCommand;
-  if (!['init', 'audit', 'inbox-pending', 'inbox-resolve', 'pair-list', 'pair-approve', 'pair-reject', 'pair-revoke', 'ingest', 'check', 'pending', 'daily'].includes(command) || !file) throw new SafeError(usage);
+  if (!['init', 'audit', 'inbox-pending', 'inbox-resolve', 'pair-list', 'pair-approve', 'pair-reject', 'pair-revoke', 'ingest', 'check', 'pending'].includes(command) || !file) throw new SafeError(usage);
   let envFile, pairId, fingerprint, receiptId, outcome;
   for (let i = 0; i < options.length; i++) {
     if (options[i] === '--env' && options[i + 1] && !envFile) envFile = options[++i];
@@ -45,11 +45,11 @@ try {
       if (!host.inbox) throw new SafeError('Feishu inbox is disabled.');
       console.log(JSON.stringify(await host.inbox.receipts(command === 'inbox-resolve' ? receiptId : undefined, outcome))); host.close(); process.exit(0);
     }
-    if (command === 'ingest' || command === 'daily') {
+    if (command === 'ingest') {
       const intake = host.inbox ? await host.inbox.processPending() : { ok: true, skipped: true };
       if (command === 'ingest') { console.log(JSON.stringify(intake)); host.close(); process.exit(0); }
     }
-    const result = command.startsWith('pair-') ? await (agent ? host.agentPairing : host.pairing).manage(command.slice(5), pairId, fingerprint) : command === 'daily' ? await selected.connector.daily() : await selected.connector.dispatch(command === 'check' ? 'health' : 'pending');
+    const result = command.startsWith('pair-') ? await (agent ? host.agentPairing : host.pairing).manage(command.slice(5), pairId, fingerprint) : await selected.connector.dispatch(command === 'check' ? 'health' : 'pending');
     console.log(JSON.stringify(command === 'check' ? { ok: result.ok, capabilities: result.capabilities } : command === 'pending' ? { ok: result.ok, pending: !!result.pending } : result));
     host.close();
   }

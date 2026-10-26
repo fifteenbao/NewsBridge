@@ -50,7 +50,7 @@ test('Database reference host signs browser requests and rejects unsupported pro
   assert.equal((await client('sync', { items: [] })).articles[0].read, true);
   assert.match((await client('csv')).csv, /Signed capture/);
   await call('preferences', { provider: 'database', language: 'zh', reminderTime: '07:15', timeZone: 'Asia/Shanghai' });
-  assert.equal((await (await call('health', { provider: 'database' })).json()).configuration.reminderTime, '07:15');
+  assert.equal((await (await call('health', { provider: 'database' })).json()).configuration.reminderTime, undefined);
   assert.equal((await call('health', { provider: 'other' })).status, 400);
   await assert.rejects(createHost({ ...config, connector: { ...feishu, storageProvider: 'unsupported' } }), /database library/);
   await assert.rejects(createHost({ ...config, connections: { feishu } }), /database library/);

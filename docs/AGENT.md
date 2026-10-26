@@ -106,4 +106,4 @@ preview 不写服务器，会输出内容 digest。向用户展示并确认后�
 
 `v1/agent/pair|query|save|reviews` 全部 POST JSON。pair 仅申请；其余用独立 agent P-256 密钥签署 POST、完整 URL、毫秒时间、UUID nonce、正文 SHA-256，以换行连接；签名为 ieee-p1363/base64url。头字段与浏览器同名 `X-ReadFlow-Pair/Time/Nonce/Signature`，密钥库相互隔离。请求不带 Origin；不提供浏览器 CORS。请求上限 128 KiB（配对 4 KiB），响应上限 20 MiB。签名有效期一分钟，持久化 nonce 防重放。
 
-目前回顾在 **Hermes 对话**中生成、展示、查询；ReadFlow 数据库持久保存。Chrome 专用回顾列表、素材关联入口、定时 AI 回顾尚未提供。人工部署及 Hermes 真实会话还需验证；仓库测试使用本机 HTTP Request/Response、签名和 SQLite，不代表已在你的 Hermes 上安装。现有每日未读提醒不受影响。
+目前回顾在 **Hermes 对话**中生成、展示、查询；ReadFlow 数据库持久保存。Chrome 专用回顾列表、素材关联入口、定时 AI 回顾尚未提供。人工部署及 Hermes 真实会话还需验证；仓库测试使用本机 HTTP Request/Response、签名和 SQLite，不代表已在你的 Hermes 上安装。每日阅读提醒已暂时移除，本指南不配置定时发送。
