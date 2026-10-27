@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · [Introduction](https://bot.fifteenbao.com/readflow/)
 
-**Before you start: use ReadFlow with your own, already configured LLM agent. This project does not provide servers, hosting, agents, or model accounts. You supply the runtime environment and authorize access.**
+**Before you start: local-only capture needs just the Chrome extension. Synchronization requires a self-run ReadFlow service; AI reviews additionally require your own configured agent. This project provides server source code, not hosting, agents, or model accounts.**
 
 ## What is it for?
 
@@ -12,10 +12,14 @@ Chrome captures content; your self-hosted ReadFlow service stores it in SQLite, 
 
 ## What you need
 
+**Local-only capture:** Chrome 106+ and an extracted extension folder. Choose local-only capture; no agent or server is required. Browser storage is not a database backup.
+
+**Synchronization and AI reviews:** prepare the environment and authorizations below. Synchronization alone does not require an agent.
+
 - **Chrome 106+** and an extracted extension folder in a permanent location.
 - **Your existing agent**, capable of running the signing helper or implementing the same HTTP protocol. The helper requires Node.js 22.13+. No new Feishu bot is required merely to discuss reviews.
 - **Your own service environment** for synchronization and reviews: a single-machine POSIX runtime, Node.js 22.13+, private persistent SQLite storage, and an existing HTTPS endpoint. The repository supplies reference server code, not a hosted server.
-- **One-time authorization:** register the installed Chrome extension ID and approve its full pairing fingerprint. Authorize the agent separately; never copy the browser private key to it. No spreadsheet URL or model key is needed in the extension.
+- **Two independent authorizations:** register the installed Chrome extension ID and approve its full pairing fingerprint. Authorize the agent separately; never copy the browser private key to it. No spreadsheet URL or model key is needed in the extension.
 
 For an initial trial, explicitly choose local-only capture. This needs no running server, but browser storage is not a database backup and is not directly queryable by the agent.
 
@@ -37,11 +41,20 @@ No npm dependencies are required. Outputs: `dist/readflow/`, `dist/readflow.zip`
 
 ## Connect your library
 
-Follow [SETUP (Chinese)](SETUP.md) and [self-hosting instructions (Chinese)](docs/SELF-HOSTING.md). Give the settings page's copied configuration task and repository location to your existing agent. The extension does not send that task automatically or provision infrastructure.
+Follow [SETUP](SETUP.en.md) and [self-hosting instructions](docs/SELF-HOSTING.en.md). Give the settings page's copied configuration task and repository location to your existing agent. The extension does not send that task automatically or provision infrastructure.
 
 Enter your complete ReadFlow HTTPS endpoint, retaining its path prefix. In **Step 2**, connect to obtain a fingerprint, then copy the confirmation task to the service operator's agent. After the operator verifies the full fingerprint and approves it, use **Step 3** to verify approval and save the connection. The extension ID is an allowlist entry, not authentication; subsequent requests are signed.
 
 The initial guide hides after setup. “Update now” uploads pending local items and retrieves current library data and reading states. Disconnecting is for changing libraries: it archives the local list, keeps server data, and does not revoke pairing. Connection failures retain pending captures; only a database acknowledgement counts as synchronized.
+
+## Verify completion
+
+Chrome pairing and agent authorization are independent. A running server or connected extension does not prove that reviews work.
+
+1. **Chrome synchronization:** save a material, verify its database acknowledgement, tags, note and reading state, and find it in CSV.
+2. **Agent integration:** query that material using the agent identity, produce a review with verifiable material IDs and citations, present the exact final content, wait for explicit user confirmation, save, then retrieve the returned review ID. Never write an unconfirmed draft.
+
+If only the first check passes, report synchronization as complete and agent integration as pending.
 
 ## Capture, read, and export
 
@@ -53,7 +66,7 @@ Separately, optional [Feishu private-message link intake (Chinese)](docs/FEISHU-
 
 ## Reviews with your existing agent
 
-Use the [agent integration guide (Chinese)](docs/AGENT.md) for independent pairing, signed queries, cited reviews, and confirmation before saving. Hermes has a reference signing helper; actual deployment still needs verification, and universal agent compatibility is not claimed.
+Use the [agent integration guide](docs/AGENT.en.md) for independent pairing, signed queries, cited reviews, and confirmation before saving. Hermes has a reference signing helper; actual deployment still needs verification, and universal agent compatibility is not claimed.
 
 Reviews appear in your existing conversation. The agent distinguishes facts from interpretations, checks counterevidence, and avoids unsupported praise or personality claims. After presenting the final content and citations, it requests explicit confirmation before saving. You can retrieve saved reviews through the agent. ReadFlow validates signatures, citations, and content digests; it trusts the authorized agent to report the human confirmation honestly and cannot independently verify that chat identity.
 

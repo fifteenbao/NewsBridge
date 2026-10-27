@@ -1,5 +1,9 @@
 # 让已有 agent 回顾 ReadFlow
 
+[English](AGENT.en.md)
+
+前提是用户已有配置好的 agent 和可用的 ReadFlow 服务。项目提供服务端源码，不提供托管服务；飞书仅是可选对话入口。Chrome 配对不等于 agent 授权，两者使用独立身份。
+
 第一版面向你已有的 Hermes：它执行 HTTP 请求或调用下面的 Node 小工具。模型、聊天和费用继续由 Hermes 管理；ReadFlow 复用现有 HTTPS 服务和 SQLite，不增加模型配置、服务器、回调地址或 Chrome 设置项。其他可执行相同协议的 agent 也可以接入，但没有做产品兼容性认证。
 
 ## 一次配对
@@ -107,3 +111,7 @@ preview 不写服务器，会输出内容 digest。向用户展示并确认后�
 `v1/agent/pair|query|save|reviews` 全部 POST JSON。pair 仅申请；其余用独立 agent P-256 密钥签署 POST、完整 URL、毫秒时间、UUID nonce、正文 SHA-256，以换行连接；签名为 ieee-p1363/base64url。头字段与浏览器同名 `X-ReadFlow-Pair/Time/Nonce/Signature`，密钥库相互隔离。请求不带 Origin；不提供浏览器 CORS。请求上限 128 KiB（配对 4 KiB），响应上限 20 MiB。签名有效期一分钟，持久化 nonce 防重放。
 
 目前回顾在 **Hermes 对话**中生成、展示、查询；ReadFlow 数据库持久保存。Chrome 专用回顾列表、素材关联入口、定时 AI 回顾尚未提供。人工部署及 Hermes 真实会话还需验证；仓库测试使用本机 HTTP Request/Response、签名和 SQLite，不代表已在你的 Hermes 上安装。每日阅读提醒已暂时移除，本指南不配置定时发送。
+
+## 完成标准
+
+用 agent 身份查到一条已由 Chrome 同步入库的素材，核对标题、标签、笔记和素材 ID；生成引用可核对的回顾，展示最终版本并等待用户明确确认，保存后使用返回的 review.id 查回同一内容。未确认不得保存。分别报告配对、查询、引用核验、用户确认、保存及查回结果；用户尚未确认时，保存验收保持待完成，不能自行补造确认。

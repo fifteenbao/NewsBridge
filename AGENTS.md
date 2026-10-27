@@ -18,7 +18,7 @@
 - Keep reading-state synchronization. Daily unread reminders are temporarily removed: do not expose reminder controls or enable daily sending, including from old saved preferences. Retain Feishu link intake and its existing ingest task; future reminders need a separate product decision.
 - Do not add calendar booking or product-specific agent connectors. A generic adapter interface is authorized.
 - Do not add or redesign frontend pages as part of documentation, backend, or security work. Necessary changes to existing page logic should be limited to verified security or functional fixes, and their purpose should be explained.
-- Maintain Chinese as the primary documentation language. Do not create parallel translated documents until requested. Preserve upstream attribution and the MIT license; keep personal credentials out of examples.
+- Maintain Chinese as the primary documentation language. Translation requests apply only to agent-facing setup, integration and operation instructions unless the user explicitly specifies another document. Keep internal PRDs in Chinese only; do not generate English PRDs. Do not create other parallel translated documents until explicitly requested. Preserve upstream attribution and the MIT license; keep personal credentials out of examples.
 
 ## Release versioning
 

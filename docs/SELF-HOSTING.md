@@ -1,5 +1,9 @@
 # ReadFlow 自建部署
 
+[English](SELF-HOSTING.en.md)
+
+项目提供可自行运行的服务端源码，不提供托管服务。仅本机收藏无需部署；数据库同步需要本服务，AI 回顾另需已有 agent 独立授权。
+
 参考实现使用单机 Node.js 22.13+、私有 SQLite 文件和已有 HTTPS 路由。不需要托管数据库、指定云平台或指定 agent；Chrome 收藏、数据库同步和 CSV 不需要飞书凭证。按 [SETUP](../SETUP.md) 的顺序初始化。
 
 ## 配置项
@@ -54,4 +58,4 @@ node examples/run.mjs ingest private/host.json --env private/host.env
 
 拉取包含 V0.4.3 的代码，核对 package.json 与 manifest.json 均为 0.4.3。运行测试、安全检查和 doctor，再使用原配置、原 uid、原 HTTPS 子路径和原进程管理方式启动。仅停用 ReadFlow 的旧 daily 定时调用，保留已配置的 ingest 链接收录任务；不要禁用其他应用或 agent 自己的任务。
 
-检查健康状态、已有收藏与 readAt、CSV、浏览器配对及 agent 签名查询。旧提醒配置不会启用发送；不要通过发送真实提醒测试此版本。失败时保留诊断，暂停新写入后按备份恢复服务代码及必要状态；已停用的 daily 任务不要因回滚自动恢复。不得丢弃更新后已产生的新资料。
+检查健康状态、已有收藏与 readAt、CSV、浏览器配对及 agent 签名查询。Chrome 同步和 agent 回顾分别报告；回顾需核对引用、展示最终内容并等待用户明确确认后保存，再按返回 ID 查回。服务启动成功不等于接入完成。旧提醒配置不会启用发送；不要通过发送真实提醒测试此版本。失败时保留诊断，暂停新写入后按备份恢复服务代码及必要状态；已停用的 daily 任务不要因回滚自动恢复。不得丢弃更新后已产生的新资料。

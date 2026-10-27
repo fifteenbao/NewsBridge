@@ -1,6 +1,10 @@
 # 配置 ReadFlow
 
+[English](SETUP.en.md)
+
 [使用与安装](README.md) · [部署参数](docs/SELF-HOSTING.md) · [飞书消息](docs/FEISHU-INBOX.md)
+
+仅本机收藏只需安装插件，不需要服务器或 agent。以下流程用于数据库同步；AI 回顾还需独立授权已有 agent。项目提供可自行运行的服务端源码，不提供托管服务。
 
 先完成数据库和 Chrome 连接，再按需启用飞书。收藏、阅读状态和 CSV 不需要飞书账号。
 
@@ -51,7 +55,7 @@ node examples/run.mjs pair-approve private/host.json --pair-id REQUEST_ID --fing
 
 ## 4. CSV 导出
 
-设置中的“下载 CSV”先同步本机待发送收藏，再下载数据库全部素材。列为标题、链接、阅读状态、时间、标签、笔记。不需要飞书凭证、表格链接或表格权限。
+设置中的“下载 CSV”先同步本机待发送收藏，再下载数据库全部素材。列为标题、链接、阅读状态、时间、标签、笔记、标记已读时间。不需要飞书凭证、表格链接或表格权限。
 
 ## 5. 可选：飞书链接收录
 
@@ -76,3 +80,7 @@ node examples/run.mjs pair-approve private/host.json --pair-id REQUEST_ID --fing
 ## 已有 agent 分析
 
 已有 Hermes 可以复用本服务，独立配对一次即可查询收藏及保存用户确认的回顾；不添加模型密钥或 Chrome 设置项。按 [agent 接入指南](docs/AGENT.md) 操作。请先阅读其资料访问范围和确认信任边界。
+
+## 完成标准
+
+Chrome 配对和 agent 授权分别验收：先确认 Chrome 收藏成功入库、元数据和状态一致、CSV 可导出；再用独立 agent 身份查询该素材、生成带可核对引用的回顾，展示最终摘要并等待用户明确确认，保存后按返回 ID 查回。未确认不得写入。服务启动或 Chrome 配对成功不代表 agent 接入完成，报告时分别列出结果。
