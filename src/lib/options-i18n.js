@@ -2,6 +2,7 @@ import { messages as diagnosticMessages } from './diagnostics.js';
 
 export const translations = {
   en: {
+    posterCaption: 'Save something. Think further.',
     collectionCount: "{count} items", emptyStatus: "No {status} items", noTags: "No tags", noNote: "No note",
     captureSuccess: "Saved successfully", captureRetry: "Retry saving", captureFailed: "Save failed: {reason}",
     syncHeading: "Update this device and library",
@@ -116,6 +117,7 @@ export const translations = {
     tableWiki: 'Wiki links resolve through the connection service during Check connection.', tableMissingId: 'Use a /base/ or /wiki/ link; if table= is present it must contain one valid Table ID.',
   },
   zh: {
+    posterCaption: '收藏之后，继续思考。',
     collectionCount: "共 {count} 条", emptyStatus: "暂无{status}内容", noTags: "未添加标签", noNote: "未填写笔记",
     captureSuccess: "收藏成功", captureRetry: "重新收藏", captureFailed: "收藏失败：{reason}",
     syncHeading: "更新本机与资料库",

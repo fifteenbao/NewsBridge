@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="ReadFlow 是开源的阅读收藏与回顾工具：用 Chrome 保存文章和视频链接，在自己的资料库管理，通过已有 agent 讨论，并将确认后的回顾保存回来。">
+<meta name="theme-color" content="#d8000f">
+<title>ReadFlow — 收藏之后，继续思考。</title>
+<style>
+:root{--red:#d8000f;--ink:#1c1410;--muted:#655c57;--paper:#f5f2ef;--line:#ddd6d0;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;--serif:Georgia,"Times New Roman",serif}
+*{box-sizing:border-box}html{scroll-padding-top:24px}body{margin:0;background:#fff;color:var(--ink);font-family:var(--sans);line-height:1.65}a{color:inherit;text-underline-offset:4px}button,a,summary{touch-action:manipulation}a:focus-visible,summary:focus-visible{outline:3px solid var(--red);outline-offset:6px}.skip{position:absolute;top:-100px;left:16px;background:white;padding:12px;z-index:2}.skip:focus{top:10px}.wrap{max-width:1240px;margin:auto;padding:0 48px}.masthead{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 0 18px;border-top:6px solid var(--ink);border-bottom:1px solid var(--ink);margin-top:26px}.logo{font:900 italic 34px/1 var(--serif);text-decoration:none;white-space:nowrap}.logo span{color:var(--red)}nav{display:flex;gap:26px;flex-wrap:wrap;font-size:13px;font-weight:650}nav a{text-decoration:none}nav a:hover{color:var(--red)}.eyebrow{font-size:11px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}.hero{padding:72px 0 64px;display:grid;grid-template-columns:1.6fr 1fr;gap:42px;align-items:end}.hero .eyebrow{margin:0 0 24px}.hero h1{font-size:clamp(48px,6.7vw,84px);font-weight:850;line-height:1.17;letter-spacing:-.04em;margin:0;text-wrap:balance}.hero h1 em{display:block;color:var(--red);font-style:normal}.hero-side{border-left:3px solid var(--red);padding-left:24px;margin-bottom:8px}.hero-side p{margin:0 0 24px;font-size:16px;line-height:1.9}.actions{display:flex;gap:12px;flex-wrap:wrap}.button{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:11px 19px;font-size:13px;font-weight:750;text-decoration:none;border:1px solid var(--ink)}.button.primary{background:var(--red);color:white;border-color:var(--red)}.button:hover{background:var(--ink);color:white;border-color:var(--ink)}.hero-foot{border-top:1px solid var(--line);padding:16px 0;display:flex;justify-content:space-between;gap:16px;font-size:12px;color:var(--muted)}.hero-foot strong{color:var(--ink)}.section{padding:64px 0;border-top:1px solid var(--ink)}.section-top{display:flex;align-items:baseline;gap:24px;margin-bottom:30px}.number{font:italic 700 30px/1 var(--serif);color:var(--red)}h2{font-size:30px;line-height:1.35;margin:0;font-weight:800;text-wrap:balance}.intro{font-size:15px;color:var(--muted);max-width:660px;margin:14px 0 30px}.workflow{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--ink)}.workflow article{padding:30px;border-right:1px solid var(--ink)}.workflow article:last-child{border-right:0}.step-label{font:700 12px/1 var(--sans);color:var(--red);margin-bottom:24px}.workflow h3{font-size:23px;margin:0 0 12px}.workflow p{font-size:14px;color:var(--muted);margin:0}.workflow small{display:block;margin-top:24px;font-size:12px;border-top:1px solid var(--line);padding-top:12px;color:var(--ink)}.principle{margin:0;background:var(--red);color:white;padding:46px 36px;text-align:center}.principle p{font-size:clamp(26px,3.5vw,42px);font-weight:800;line-height:1.45;margin:0;text-wrap:balance}.principle small{display:block;font-size:13px;margin-top:16px}.review-grid{display:grid;grid-template-columns:1fr 1.25fr;gap:56px}.feature{padding:0 0 22px;margin-bottom:22px;border-bottom:1px solid var(--line)}.feature:last-child{border:0;margin:0}.feature h3{font-size:19px;margin:0 0 8px}.feature p{font-size:14px;color:var(--muted);margin:0}.dialogue{background:var(--paper);padding:28px}.dialogue-label{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--ink);padding-bottom:14px;font-size:11px;font-weight:750;color:var(--muted)}.utterance{padding-top:22px}.speaker{font-size:11px;font-weight:750;color:var(--red);margin:0 0 8px}.utterance p:not(.speaker){font-size:14px;margin:0;line-height:1.85}.citation{font-size:12px!important;color:var(--muted);margin-top:10px!important}.confirmation{border-top:1px solid var(--line);margin-top:24px;padding-top:18px;font-size:13px;font-weight:700}.scope{font-size:12px;color:var(--muted);margin:16px 0 0}.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:30px}.facts article{border-top:3px solid var(--ink);padding-top:16px}.facts h3{font-size:18px;margin:0 0 8px}.facts p{font-size:14px;color:var(--muted);margin:0}.install{display:grid;grid-template-columns:.9fr 1.3fr;gap:64px}.install ol{list-style:none;padding:0;margin:0;counter-reset:setup}.install li{counter-increment:setup;display:grid;grid-template-columns:32px 1fr;gap:16px;padding:20px 0;border-bottom:1px solid var(--line)}.install li:first-child{padding-top:0}.install li::before{content:"0" counter(setup);color:var(--red);font:italic 700 24px var(--serif)}.install h3{font-size:17px;margin:0 0 6px}.install p{font-size:14px;color:var(--muted);margin:0}.install code{font-size:12px;overflow-wrap:anywhere;background:var(--paper);padding:2px 5px}.install .actions{margin-top:24px}.note{margin-top:22px!important;font-size:12px!important}.faq{max-width:880px}.faq details{border-bottom:1px solid var(--line);padding:20px 0}.faq summary{cursor:pointer;font-size:16px;font-weight:700;line-height:1.6}.faq details p{color:var(--muted);font-size:14px;line-height:1.85;margin:12px 0 0}.outro{border-top:5px solid var(--ink);padding:36px 0 40px;display:flex;justify-content:space-between;align-items:end;gap:32px}.outro h2{font-size:26px}.outro p{font-size:13px;color:var(--muted);margin:10px 0 0}.footer{border-top:1px solid var(--line);padding:20px 0 32px;font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:32px}.footer p{margin:0;max-width:740px}.footer a:hover{color:var(--red)}
+@media(max-width:850px){.wrap{padding:0 24px}.hero{grid-template-columns:1fr;padding-top:48px;gap:32px}.hero-side{max-width:600px}.review-grid,.install{grid-template-columns:1fr;gap:28px}.workflow article{padding:22px}.facts{gap:20px}.section{padding:44px 0}.masthead{align-items:flex-start}nav{gap:12px 18px;justify-content:flex-end}.hero-foot{flex-wrap:wrap}}
+@media(max-width:540px){.wrap{padding:0 18px}.masthead{margin-top:16px;flex-direction:column;gap:20px}nav{justify-content:flex-start;font-size:12px}.hero h1{font-size:48px}.hero{padding:40px 0}.hero-side{padding-left:18px}.hero-side p{font-size:15px}.workflow,.facts{grid-template-columns:1fr}.workflow article{border-right:0;border-bottom:1px solid var(--ink);padding:24px}.workflow article:last-child{border-bottom:0}.step-label{margin-bottom:16px}.workflow small{margin-top:18px}.principle{padding:32px 20px}.section-top{gap:16px}h2{font-size:25px}.dialogue{padding:22px}.outro,.footer{flex-direction:column;align-items:start;gap:22px}.facts article{padding-bottom:10px}.hero-foot{font-size:11px}}
+@media print{.wrap{max-width:none;padding:0 16px}nav,.actions,.skip{display:none}.section,.hero{padding:26px 0}article,.dialogue,details{break-inside:avoid}.principle{background:white;color:var(--ink);border:2px solid var(--ink)}.footer{font-size:10px}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+<div class="wrap">
+<header class="masthead">
+<a class="logo" href="#" aria-label="ReadFlow 首页">Read<span>Flow.</span></a>
+<nav aria-label="页面导航"><a href="#workflow">如何使用</a><a href="#review">回顾与讨论</a><a href="#start">开始使用</a><a href="https://github.com/fifteenbao/ReadFlow">GitHub ↗</a></nav>
+</header>
+<main id="main">
+<aside class="intro" aria-label="使用前提"><strong>使用前请注意：</strong>请在你自有、已配置好的 LLM agent 环境中使用。本项目不提供服务器或托管服务，也不提供 agent 或模型账号；需要你自行准备 ReadFlow 服务的运行环境并完成授权接入。</aside>
+<section class="hero" aria-labelledby="hero-title">
+<div><p class="eyebrow">An open-source reading companion</p><h1 id="hero-title">收藏之后，<em>继续思考。</em></h1></div>
+<div class="hero-side"><p>把值得慢慢理解的文章和视频留在自己的资料库。读完、记下问题，再和你已有的 AI 助手一起回顾，让讨论留下可以再次查看的依据。</p><div class="actions"><a class="button primary" href="#start">开始使用 ReadFlow ↗</a><a class="button" href="#workflow">了解工作方式 ↓</a></div></div>
+</section>
+<div class="hero-foot"><span><strong>CHROME · 自建资料库 · 已有 AGENT</strong></span><span>开源项目 / MIT License / 当前代码版本 V0.4.3</span></div>
+<section class="section" id="workflow" aria-labelledby="workflow-title">
+<div class="section-top"><span class="number" aria-hidden="true">01</span><h2 id="workflow-title">从一条链接，到一次有依据的回顾。</h2></div>
+<p class="intro">ReadFlow 负责保留素材与讨论结果。你决定读什么、讨论什么，以及哪些理解值得留下。</p>
+<div class="workflow">
+<article><div class="step-label">SAVE / 收藏</div><h3>先留下一个问题。</h3><p>在 Chrome 保存文章或视频链接，添加标签和笔记：为什么收藏？哪里没看懂？下一次想验证什么？</p><small>可先在本机体验；连接后同步到资料库。</small></article>
+<article><div class="step-label">READ / 理解</div><h3>按自己的节奏阅读。</h3><p>从未读、已读和跳过三个状态管理收藏。回到原文阅读或观看，记录想法，保留标记已读的时间。</p><small>保存标题与链接，不抓取正文或下载视频。</small></article>
+<article><div class="step-label">REFLECT / 回顾</div><h3>把证据带回对话。</h3><p>让已授权的 agent 查询收藏、引用笔记，和你讨论。展示最终摘要，得到你的确认后，再保存回 ReadFlow。</p><small>分析显示在已有 agent 对话中。</small></article>
+</div>
+</section>
+<aside class="principle" aria-label="产品原则"><p>收藏不等于理解。<br>好的回顾，经得起追问。</p><small>区分事实与推测，允许反驳，也允许暂时没有结论。</small></aside>
+<section class="section" id="review" aria-labelledby="review-title">
+<div class="section-top"><span class="number" aria-hidden="true">02</span><h2 id="review-title">让 AI 帮你核实，而不只是赞美。</h2></div>
+<p class="intro">默认你已经配置好可对话的 LLM agent。将它授权接入 ReadFlow 后，就可以在原有对话中围绕这三个方向发起讨论。ReadFlow 提供素材与保存接口，agent 负责分析。</p>
+<div class="review-grid">
+<div>
+<article class="feature"><h3>那年今日</h3><p>翻回往年同一天收藏的素材，看看当时的问题。没有命中就如实说明，不把随机推荐冒充历史。</p></article>
+<article class="feature"><h3>阅读习惯回顾</h3><p>按时间范围查看收藏、标签和阅读状态。报告可核对的记录，说明缺失数据，不把已读标记当作实际理解程度。</p></article>
+<article class="feature"><h3>盲区讨论</h3><p>围绕你选定的问题寻找支持证据、反例和其他解释。你可以纠正结论，agent 应保留修正，而不是给你贴标签。</p></article>
+<p class="scope">接入需先配对授权。Hermes 已有接入指南，实际环境仍需联调；不宣称所有 agent 都能直接使用。</p>
+</div>
+<aside class="dialogue" aria-label="回顾对话示例，非真实用户数据">
+<div class="dialogue-label"><span>一次回顾，如何展开</span><span>示意对话 · 非真实数据</span></div>
+<div class="utterance"><p class="speaker">你</p><p>我是不是只在收藏方法，却很少真正尝试？</p></div>
+<div class="utterance"><p class="speaker">AGENT</p><p>这份示例中，有几条方法类收藏仍标为未读。但一条笔记写着“已经试了一周”，它不支持“从未尝试”的判断。</p><p class="citation">依据：素材 A 的当前状态；素材 B 的个人笔记。正式回顾会附原链接与素材 ID。</p></div>
+<div class="utterance"><p class="speaker">继续核实</p><p>ReadFlow 没有你全部的行动记录。那次尝试带来了什么变化？我们可以先从这条具体经历谈起。</p></div>
+<p class="confirmation">讨论 → 展示摘要与引用 → 你确认 → 保存回资料库</p>
+</aside>
+</div>
+</section>
+<section class="section" aria-labelledby="ownership-title">
+<div class="section-top"><span class="number" aria-hidden="true">03</span><h2 id="ownership-title">资料有归处，分工也清楚。</h2></div>
+<div class="facts">
+<article><h3>数据库是唯一主库</h3><p>自建 ReadFlow 服务以 SQLite 保存素材和已确认的回顾。Chrome 保留本机待同步内容；断网收藏不冒充备份成功。</p></article>
+<article><h3>AI 留在你熟悉的地方</h3><p>默认使用你已经配置好的 LLM agent。飞书可以是与它对话的入口，也可以使用其他已接入 agent 的对话工具。真正执行分析的是 agent；ReadFlow 不直接调用模型 API，也不保存模型密钥。</p></article>
+<article><h3>保留，也可以带走</h3><p>主动导出 CSV，包含标题、链接、状态、收藏时间、标签、笔记和标记已读时间。完整备份仍需保存服务端状态目录。</p></article>
+</div>
+</section>
+<section class="section install" id="start" aria-labelledby="start-title">
+<div><div class="section-top"><span class="number" aria-hidden="true">04</span><h2 id="start-title">先收藏，再连接。</h2></div><p>你可以先体验本机收藏。需要跨设备资料库或 agent 回顾时，再配置自己的服务。</p><div class="actions"><a class="button primary" href="https://github.com/fifteenbao/ReadFlow">获取项目源码 ↗</a><a class="button" href="https://github.com/fifteenbao/ReadFlow/blob/main/SETUP.md">查看配置指南 ↗</a></div><p class="note">Chrome 106+。自建参考服务需要 Node.js 22.13+ 与已有 HTTPS 地址。无需指定云平台。</p></div>
+<ol>
+<li><div><h3>解压插件到固定文件夹</h3><p>在 GitHub 选择 Code → Download ZIP，下载后先解压。找到包含 <code>manifest.json</code> 的 ReadFlow 文件夹，保留在固定位置；不能直接加载 ZIP 压缩包。</p></div></li>
+<li><div><h3>开启开发者模式，加载插件</h3><p>在 Chrome 地址栏输入 <code>chrome://extensions</code> 并回车。打开右上角的“开发者模式”，点击“加载已解压的扩展程序”，选择上一步包含 <code>manifest.json</code> 的文件夹。看到 ReadFlow 扩展卡片即表示安装成功。</p><p class="note">升级时保持安装目录不变。移动文件夹可能改变扩展 ID，需重新更新服务端白名单。</p></div></li>
+<li><div><h3>打开网页，收藏当前页</h3><p>在 Chrome 工具栏点击拼图形状的“扩展程序”，将 ReadFlow 固定到工具栏。打开要保存的文章或视频页面，点击 ReadFlow 图标，选择“收藏当前页”，按需填写标签和笔记，保存后查看成功或失败提示。进入收藏列表可切换未读、已读与跳过。</p></div></li>
+<li><div><h3>按指纹确认连接</h3><p>将设置页的“复制配置任务”内容粘贴到你已有的 agent 对话中；飞书只是可选入口，不必为 ReadFlow 更换对话工具。取得 HTTPS 服务地址后，在 Step 2 获取指纹并复制确认任务；服务端批准后，点击 Step 3 完成连接。</p></div></li>
+<li><div><h3>授权已有 agent 回顾</h3><p>按 <a href="https://github.com/fifteenbao/ReadFlow/blob/main/docs/AGENT.md">agent 接入指南</a>独立配对。之后在原有对话中请求回顾；确认具体内容后再保存，不需要在插件填写模型密钥。</p></div></li>
+</ol>
+</section>
+<section class="section faq" aria-labelledby="faq-title"><div class="section-top"><span class="number" aria-hidden="true">05</span><h2 id="faq-title">开始之前，你可能想知道。</h2></div>
+<details><summary>必须使用飞书或在线表格吗？</summary><p>不需要。这里的飞书是已有 LLM agent 的一种可选对话入口，并不负责运行模型或保存主库；你也可以在其他已配置好 agent 的对话工具中使用。分析和带引用的回顾由获授权的 agent 完成，确认后的结果保存到 ReadFlow 数据库。当前不提供飞书多维表格或 Google 表格同步。</p></details>
+<details><summary>能自动读取文章全文或转写视频吗？</summary><p>当前保存标题、链接、标签和个人笔记，不抓取正文、不下载或转写视频。agent 只有标题和链接时，应说明信息不足，不能假装已经读过全文。</p></details>
+<details><summary>分析结果在哪里？谁负责确认保存？</summary><p>回顾首先显示在已有 agent 对话中。agent 展示最终摘要和引用，收到你的明确确认后，通过授权接口保存；之后可以通过 agent 按回顾 ID 查询。ReadFlow 校验引用与内容摘要，但无法独立核实外部聊天中的确认者身份，因此只应授权你信任的 agent。Chrome 内的独立回顾列表尚未提供。</p></details>
+<details><summary>会每天自动推送阅读提醒吗？</summary><p>每日阅读提醒已暂时移除，定时 AI 回顾也尚未提供。当前以用户主动发起讨论为主；未来的主动推送需要单独配置和明确授权。</p></details>
+<details><summary>先在本机收藏，会不会自动备份？</summary><p>不会。本机模式只把资料保存在当前浏览器。连接服务并同步成功后才进入数据库；卸载扩展或清理浏览器数据可能丢失未同步内容。服务端也需要由配置者定期备份。</p></details>
+</section>
+<section class="outro" aria-labelledby="outro-title"><div><h2 id="outro-title">从下一条值得读的内容开始。</h2><p>留下一条链接，也留下一个自己的问题。</p></div><a class="button primary" href="https://github.com/fifteenbao/ReadFlow">在 GitHub 查看 ReadFlow ↗</a></section>
+</main>
+<footer class="footer"><p>参考与致谢：ReadFlow 在 <a href="https://github.com/zarazhangrui/reading-block-lark">zarazhangrui/reading-block-lark</a> 基础上修改，保留 <a href="https://github.com/fifteenbao/ReadFlow/blob/main/LICENSE">MIT 许可证</a>。视觉参考 <a href="https://github.com/zarazhangrui/beautiful-html-templates/blob/main/templates/bold-poster/template.html">Bold Poster</a>。</p><span>ReadFlow / 2026</span></footer>
+</div>
+</body>
+</html>

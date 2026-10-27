@@ -20,3 +20,6 @@ src/_preview_*.html
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
+
+# Local product planning documents
+**/*PRD*.md

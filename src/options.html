@@ -9,12 +9,13 @@
   <body class="options">
     <div class="options-wrap">
       <header class="options-head">
-        <div class="brand"><span class="mark">ReadFlow</span></div>
+        <div class="brand"><span class="mark">Read<span>Flow.</span></span></div>
         <nav class="dash-nav" aria-label="ReadFlow">
           <a id="nav-collection" href="#reading-list" data-i18n="collection">收藏</a>
           <a id="nav-settings" href="#settings" data-i18n="settings">设置</a>
         </nav>
         <div class="header-language"><label for="ui-language" data-i18n="interfaceLanguage">界面语言</label><select id="ui-language" aria-describedby="ui-language-hint"><option value="en">English</option><option value="zh">简体中文</option></select></div>
+        <p class="poster-caption" data-i18n="posterCaption">收藏之后，继续思考。</p>
         <p id="ui-language-hint" class="field-hint" data-i18n="interfaceHint">界面语言立即生效。</p>
       </header>
       <section id="reading-list" hidden>
@@ -44,7 +45,7 @@
             <textarea id="agent-task" rows="7" readonly aria-describedby="agent-task-help"></textarea>
           </details>
         </section>
-        <section class="card">
+        <section class="card connection-card">
           <h2 data-i18n="connection">Step 2 · 连接服务器</h2>
           <p class="card-note" data-i18n="connectionHint">填写服务地址获取指纹，再让 agent 核对并批准。</p>
           <div class="field field-wide"><div><label class="field-label" for="connectionUrl" data-i18n="connectionUrl">连接服务地址</label><p id="endpoint-hint" class="field-hint" data-i18n="endpointHint">由 AI 助手或配置者提供的完整 HTTPS 地址，不是飞书表格链接。请保留地址中的子路径。</p></div><div class="field-control"><input id="connectionUrl" type="url" autocomplete="off" spellcheck="false" aria-describedby="endpoint-hint endpoint-error" placeholder="https://connection.example.com/readflow/" /><p id="endpoint-error" role="status" aria-live="polite" class="notice"></p></div></div>
